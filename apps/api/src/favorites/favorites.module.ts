@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
-// Contexto reservado: sin contratos ni implementación de negocio todavía.
-@Module({})
+import { AuthModule } from '../auth/auth.module';
+import { FavoritesController } from './favorites.controller';
+@Module({ imports: [AuthModule], controllers: [FavoritesController] })
 export class FavoritesModule {}

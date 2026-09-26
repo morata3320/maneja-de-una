@@ -7,17 +7,24 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.mts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "oxlint --type-aware src/ test/",
+    "lint": "oxlint --type-aware src/ test/ scripts/",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
+    "test:e2e": "npm run build && node scripts/test-database.mts",
+    "contract:check": "node scripts/autos-contract.mts",
+    "contract:generate": "node scripts/autos-contract.mts --generate",
+    "test:contract": "node scripts/autos-contract.mts --check-types && node --test scripts/autos-contract.test.mts",
+    "migration:run": "npm run build && node dist/persistence/migrate.js",
+    "migration:revert": "npm run build && node dist/persistence/migrate.js --revert",
+    "seed": "npm run build && node dist/persistence/seed.js",
+    "auth:token": "node scripts/auth-token.mts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -26,20 +33,31 @@
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/swagger": "^12.0.1",
     "@nestjs/throttler": "^6.7.0",
+    "@nestjs/typeorm": "^12.0.1",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "dotenv": "^18.0.4",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "typeorm": "^1.1.1"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "jest": "^30.0.0",
     "oxlint": "^1.58.0",
@@ -51,7 +69,8 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "yaml": "^2.9.1"
   },
   "scarfSettings": {
     "enabled": false

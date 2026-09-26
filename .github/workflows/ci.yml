@@ -7,6 +7,36 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: maneja_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d maneja_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_NAME: maneja_ci
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      AUTH_MODE: local
+      AUTH_ISSUER: urn:autos:local
+      AUTH_AUDIENCE: autos-api
+      AUTOS_LOCAL_JWT_SECRET: ci-autos-secret-with-more-than-32-characters
+      INTERNAL_JWT_SECRET: ci-internal-secret-with-more-than-32-characters
+      PAGINATION_SECRET: ci-pagination-secret-with-more-than-32-characters
+      WEBHOOK_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      WEBHOOK_WORKER_ENABLED: 'false'
+      WEBHOOK_ALLOW_LOOPBACK: 'true'
     defaults:
       run:
         working-directory: apps/api
@@ -18,7 +48,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
       - run: npm ci
+      - run: npm run lint
+      - run: npm run contract:check
+      - run: npm run test:contract
       - run: npm run build
+      - run: npm run migration:run
       - run: npm test -- --runInBand
       - run: npm run test:e2e -- --runInBand
   web:

@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import { AdminModule } from './admin/admin.module';
+import { DatabaseModule } from './persistence/database.module';
+import { SecurityModule } from './security/security.module';
+import { AutosModule } from './integrations/autos/autos.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -19,6 +23,10 @@ import { BookingModule } from './integrations/booking/booking.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
+    DatabaseModule,
+    SecurityModule,
+    AutosModule,
+    AdminModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

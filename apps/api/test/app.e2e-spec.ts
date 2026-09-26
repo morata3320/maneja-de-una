@@ -70,7 +70,7 @@ describe('API base (e2e)', () => {
         'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       );
       expect(response.headers['access-control-allow-headers']).toBe(
-        'Content-Type,Authorization,X-Correlation-Id',
+        'Content-Type,Authorization,X-Correlation-Id,X-Affiliate-Id,Idempotency-Key',
       );
     },
   );
