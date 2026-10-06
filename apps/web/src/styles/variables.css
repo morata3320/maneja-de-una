@@ -1,0 +1,19 @@
+:root {
+  --color-primary: #244deb;
+  --color-primary-hover: #173bcc;
+  --color-accent: #d8f568;
+  --color-background: #fafbf9;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f0f3f1;
+  --color-text: #172c35;
+  --color-text-secondary: #66737b;
+  --color-border: #dfe5e3;
+  --color-success: #246c50;
+  --color-warning: #946015;
+  --color-danger: #ad4146;
+  --font-primary:
+    "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-display: var(--font-primary);
+  --radius: 16px;
+  --shadow: 0 8px 28px #172c3508;
+}

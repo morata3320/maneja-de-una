@@ -6,15 +6,18 @@ config({ quiet: true });
 if (process.env.NODE_ENV === 'production')
   throw new Error('Pruebas destructivas prohibidas en producción.');
 const name = 'maneja_test_' + randomBytes(8).toString('hex');
+const ssl =
+  process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined;
 const admin = new Client(
   process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
+    ? { connectionString: process.env.DATABASE_URL, ssl }
     : {
         host: process.env.DB_HOST ?? '127.0.0.1',
         port: Number(process.env.DB_PORT ?? 5432),
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: 'postgres',
+        ssl,
       },
 );
 let created = false;
