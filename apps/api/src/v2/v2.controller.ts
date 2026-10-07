@@ -115,6 +115,7 @@ export class VehiclesV2Controller {
   @ApiOperation({ summary: 'Catalogo paginado con filtros' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'brand', required: false })
+  @ApiQuery({ name: 'model', required: false })
   @ApiQuery({ name: 'category', required: false })
   @ApiQuery({ name: 'transmission', required: false })
   @ApiQuery({ name: 'fuelType', required: false })
@@ -122,10 +123,12 @@ export class VehiclesV2Controller {
   @ApiQuery({ name: 'supplier', required: false })
   @ApiQuery({ name: 'minPrice', required: false, type: Number })
   @ApiQuery({ name: 'maxPrice', required: false, type: Number })
-  @ApiQuery({ name: 'sort', required: false, enum: ['price_asc', 'price_desc'] })
-  list(
-    @Query() q: Record<string, unknown>,
-  ) {
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['price_asc', 'price_desc'],
+  })
+  list(@Query() q: Record<string, unknown>) {
     return this.s.vehicles(q);
   }
   @Get(':id') get(@Param('id') id: string) {
@@ -180,8 +183,7 @@ const catalogNames = [
 export class CatalogV2Controller {
   constructor(private readonly s: V2Service) {}
   private check(r: string) {
-    if (!catalogNames.includes(r))
-      throw new NotFoundException();
+    if (!catalogNames.includes(r)) throw new NotFoundException();
     return r;
   }
   @Get() list(
@@ -291,7 +293,10 @@ export class ReservationsV2Controller {
 export class PaymentsV2Controller {
   constructor(private readonly s: V2Service) {}
   @Post('simulate')
-  @ApiOperation({ summary: 'Pago simulado para demostración. El número solo se valida por formato y longitud; no existe procesamiento bancario real.' })
+  @ApiOperation({
+    summary:
+      'Pago simulado para demostración. El número solo se valida por formato y longitud; no existe procesamiento bancario real.',
+  })
   simulate(@Req() r: InternalRequest, @Body() b: PaymentDto) {
     return this.s.simulatePayment(r.user, b);
   }

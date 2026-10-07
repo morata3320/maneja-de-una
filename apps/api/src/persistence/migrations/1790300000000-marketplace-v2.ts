@@ -33,7 +33,8 @@ CREATE INDEX orders_user_created ON orders(owner_id,created_at DESC);
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    if (process.env.NODE_ENV === 'production') throw new Error('Revert deshabilitado en produccion.');
+    if (process.env.NODE_ENV === 'production')
+      throw new Error('Revert deshabilitado en produccion.');
     await queryRunner.query(`
 DROP INDEX IF EXISTS orders_user_created;
 DROP TABLE payments;

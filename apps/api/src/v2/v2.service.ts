@@ -56,48 +56,54 @@ const pagination = (q: Record<string, unknown>) => {
 };
 const userView = (u: Row) => expose(u);
 const scalarText = (value: unknown): string | null =>
-  typeof value === 'string' || typeof value === 'number'
-    ? String(value)
-    : null;
+  typeof value === 'string' || typeof value === 'number' ? String(value) : null;
 const reservationView = (row: Row) => {
-  const route = row.route && typeof row.route === 'object'
-    ? (row.route as Record<string, unknown>)
-    : {};
+  const route =
+    row.route && typeof row.route === 'object'
+      ? (row.route as Record<string, unknown>)
+      : {};
   const storedPickup = route.pickup;
   const fallbackPickup = typeof storedPickup === 'string' ? storedPickup : null;
-  const pickupDepot = row.depot_id == null
-    ? null
-    : {
-        id: Number(row.depot_id),
-        name: scalarText(row.depot_name) ?? fallbackPickup ?? '',
-        locationId: scalarText(row.depot_location_id),
-        location: scalarText(row.depot_location_name) ?? fallbackPickup,
-      };
-  const vehicle = row.related_vehicle_id == null
-    ? null
-    : {
-        id: scalarText(row.related_vehicle_id) ?? '',
-        brand: scalarText(row.vehicle_brand),
-        model: scalarText(row.vehicle_model),
-        name: [row.vehicle_brand, row.vehicle_model].filter(Boolean).join(' '),
-      };
-  const customer = row.customer_id == null
-    ? null
-    : {
-        id: scalarText(row.customer_id) ?? '',
-        firstName: scalarText(row.customer_first_name),
-        lastName: scalarText(row.customer_last_name),
-        email: scalarText(row.customer_email),
-      };
-  const payment = row.payment_reference == null && row.payment_status == null
-    ? null
-    : {
-        paymentReference: scalarText(row.payment_reference),
-        status: scalarText(row.payment_status),
-        amount: row.payment_amount == null ? null : Number(row.payment_amount),
-        brand: scalarText(row.payment_brand),
-        last4: scalarText(row.payment_last4),
-      };
+  const pickupDepot =
+    row.depot_id == null
+      ? null
+      : {
+          id: Number(row.depot_id),
+          name: scalarText(row.depot_name) ?? fallbackPickup ?? '',
+          locationId: scalarText(row.depot_location_id),
+          location: scalarText(row.depot_location_name) ?? fallbackPickup,
+        };
+  const vehicle =
+    row.related_vehicle_id == null
+      ? null
+      : {
+          id: scalarText(row.related_vehicle_id) ?? '',
+          brand: scalarText(row.vehicle_brand),
+          model: scalarText(row.vehicle_model),
+          name: [row.vehicle_brand, row.vehicle_model]
+            .filter(Boolean)
+            .join(' '),
+        };
+  const customer =
+    row.customer_id == null
+      ? null
+      : {
+          id: scalarText(row.customer_id) ?? '',
+          firstName: scalarText(row.customer_first_name),
+          lastName: scalarText(row.customer_last_name),
+          email: scalarText(row.customer_email),
+        };
+  const payment =
+    row.payment_reference == null && row.payment_status == null
+      ? null
+      : {
+          paymentReference: scalarText(row.payment_reference),
+          status: scalarText(row.payment_status),
+          amount:
+            row.payment_amount == null ? null : Number(row.payment_amount),
+          brand: scalarText(row.payment_brand),
+          last4: scalarText(row.payment_last4),
+        };
   return {
     id: scalarText(row.id) ?? '',
     status: scalarText(row.status) ?? '',
@@ -122,7 +128,8 @@ const reservationView = (row: Row) => {
     paymentStatus: payment?.status ?? null,
     paymentReference: payment?.paymentReference ?? null,
     pickupDepot,
-    pickupLocation: pickupDepot?.location ?? pickupDepot?.name ?? fallbackPickup,
+    pickupLocation:
+      pickupDepot?.location ?? pickupDepot?.name ?? fallbackPickup,
   };
 };
 
@@ -305,9 +312,10 @@ export class V2Service {
       'SELECT * FROM users WHERE email=$1',
       [body.email.toLowerCase()],
     );
-    const storedHash = typeof user?.password_hash === 'string'
-      ? user.password_hash
-      : await hash('unusable-dummy-password', 12);
+    const storedHash =
+      typeof user?.password_hash === 'string'
+        ? user.password_hash
+        : await hash('unusable-dummy-password', 12);
     const valid = await compare(body.password, storedHash);
     if (!user || !valid || user.status !== 'ACTIVE' || !user.active)
       throw new (await import('@nestjs/common')).UnauthorizedException(
@@ -430,6 +438,7 @@ export class V2Service {
       where = ['v.active=true'];
     const exact: Record<string, string> = {
       brand: 'b.name',
+      model: 'vm.name',
       category: 'c.name',
       transmission: 'v.transmission',
       fuelType: 'v.fuel_type',
@@ -711,7 +720,12 @@ export class V2Service {
          ${from} ORDER BY o.created_at DESC LIMIT $${vals.length + 1} OFFSET $${vals.length + 2}`,
         [...vals, limit, offset],
       );
-      return { data: rows.map(reservationView), total: Number(count), page, limit };
+      return {
+        data: rows.map(reservationView),
+        total: Number(count),
+        page,
+        limit,
+      };
     } catch (error) {
       this.logger.error(
         `No fue posible listar reservas (all=${all}, page=${page}, filters=${where.length})`,

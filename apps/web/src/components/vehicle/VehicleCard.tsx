@@ -3,6 +3,7 @@ import type { Vehicle } from "../../types/vehicle";
 import { useExperience } from "../LocalExperience";
 import { Badge, Button, Checkbox, PriceDisplay, Rating } from "../ui";
 import { Icon } from "../ui/Icon";
+import { getVehiclePlaceholder } from "../../controllers/useVehiclesController";
 export function VehicleArt({
   vehicle,
   className = "",
@@ -19,6 +20,13 @@ export function VehicleArt({
         src={vehicle.image}
         alt={`Ilustración de referencia ${vehicle.category}: ${vehicle.brand} ${vehicle.model}`}
         loading="lazy"
+        onError={(event) => {
+          const fallback = getVehiclePlaceholder(
+            vehicle.category === "Sedán" ? "Sedan" : vehicle.category,
+          );
+          if (event.currentTarget.src.endsWith(fallback)) return;
+          event.currentTarget.src = fallback;
+        }}
       />
       <span className="art-caption">Ilustración de referencia</span>
     </div>
@@ -55,7 +63,9 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
               {vehicle.brand} {vehicle.model}
             </Link>
           </h3>
-          <span>{vehicle.year}</span>
+          <span>
+            {vehicle.year} · {vehicle.status}
+          </span>
         </div>
         <div className="card-location">
           <Icon name="pin" size={14} />

@@ -109,7 +109,7 @@ describe('Autos real PostgreSQL y contrato', () => {
     search = r.body as CarSearchResponse;
     contract('/search', 'post', 200, r.body);
     expect(search.data).toHaveLength(10);
-    expect(search.metadata?.total_results).toBe(14);
+    expect(search.metadata?.total_results).toBe(27);
     expect(r.headers['cache-control']).toBe('public, max-age=300');
   });
   it('paginación opaca y token corrupto', async () => {
@@ -119,7 +119,7 @@ describe('Autos real PostgreSQL y contrato', () => {
       ...body,
       page: initial.metadata?.next_page,
     }).expect(200);
-    expect((r.body as CarSearchResponse).data).toHaveLength(4);
+    expect((r.body as CarSearchResponse).data).toHaveLength(10);
     await post('/search', { ...body, page: 'corrupt' }).expect(400);
   });
   it('rechaza affiliate ausente', async () => {

@@ -5,6 +5,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/configure-app';
 import { seedId } from '../src/persistence/seed-data';
+import {
+  expandedCatalog,
+  seedVehicleCatalog,
+} from '../src/persistence/catalog-seed-data';
 import { randomUUID } from 'node:crypto';
 
 const cedula = (firstNine: string) => {
@@ -16,7 +20,11 @@ const cedula = (firstNine: string) => {
 };
 
 describe('Marketplace API V2', () => {
-  let app: INestApplication, db: DataSource, token: string, adminToken: string, otherToken: string;
+  let app: INestApplication,
+    db: DataSource,
+    token: string,
+    adminToken: string,
+    otherToken: string;
   const email = 'v2.user@example.test',
     password = 'Password9',
     arbitraryCardA = '1'.repeat(15),
@@ -30,6 +38,31 @@ describe('Marketplace API V2', () => {
     db = app.get(DataSource);
   }, 60_000);
   afterAll(() => app?.close());
+
+  it('amplia el catalogo idempotentemente con marcas y relaciones correctas', async () => {
+    expect(await seedVehicleCatalog(db)).toBe(0);
+    expect(await seedVehicleCatalog(db)).toBe(0);
+    const [counts] = await db.query<
+      Array<{ vehicles: string; models: string; brands: string }>
+    >(`SELECT
+         (SELECT count(*) FROM vehicles) vehicles,
+         (SELECT count(DISTINCT model_id) FROM vehicles) models,
+         (SELECT count(*) FROM brands) brands`);
+    expect(counts).toEqual({ vehicles: '29', models: '16', brands: '10' });
+    const relations = await db.query<
+      Array<{ brand: string; model: string; license_plate: string }>
+    >(`SELECT b.name brand,vm.name model,v.license_plate
+       FROM vehicles v
+       JOIN brands b ON b.id=v.brand_id
+       JOIN vehicle_models vm ON vm.id=v.model_id AND vm.brand_id=v.brand_id
+       WHERE v.license_plate LIKE 'MDU-%'`);
+    expect(relations).toHaveLength(13);
+    expect(
+      relations.map(({ brand, model }) => `${brand} ${model}`).sort(),
+    ).toEqual(
+      expandedCatalog.map(({ brand, model }) => `${brand} ${model}`).sort(),
+    );
+  });
 
   it('registra USER sin permitir mass assignment y autentica JWT', async () => {
     await request(app.getHttpServer())
@@ -71,7 +104,12 @@ describe('Marketplace API V2', () => {
       .auth(token, { type: 'bearer' })
       .expect(200)
       .expect(({ body }) => {
-        expect(body).toMatchObject({ role: 'USER', firstName: 'Ana', lastName: 'Prueba', email });
+        expect(body).toMatchObject({
+          role: 'USER',
+          firstName: 'Ana',
+          lastName: 'Prueba',
+          email,
+        });
         expect(JSON.stringify(body)).not.toContain('password');
       });
   });
@@ -96,6 +134,23 @@ describe('Marketplace API V2', () => {
       .get('/api/v2/admin/dashboard')
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
+
+    const brands = await request(app.getHttpServer())
+      .get('/api/v2/brands?limit=100')
+      .expect(200);
+    expect(brands.body.total).toBe(10);
+    const models = await request(app.getHttpServer())
+      .get('/api/v2/vehicle-models?limit=100')
+      .expect(200);
+    expect(models.body.total).toBe(16);
+    await request(app.getHttpServer())
+      .patch('/api/v2/vehicles/' + seedId(117))
+      .auth(adminToken, { type: 'bearer' })
+      .send({ color: 'Blanco' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ model: 'RAV4', color: 'Blanco' });
+      });
   });
 
   it('lista vehiculos con paginacion, filtros y HATEOAS', async () => {
@@ -103,7 +158,30 @@ describe('Marketplace API V2', () => {
       .get('/api/v2/vehicles?page=1&limit=5&sort=price_asc')
       .expect(200);
     expect(list.body.data).toHaveLength(5);
-    expect(list.body.total).toBe(16);
+    expect(list.body.total).toBe(29);
+    const all = await request(app.getHttpServer())
+      .get('/api/v2/vehicles?page=1&limit=100')
+      .expect(200);
+    expect(
+      new Set(all.body.data.map((row: { model: string }) => row.model)).size,
+    ).toBe(16);
+    expect(all.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ brand: 'Toyota', model: 'RAV4' }),
+        expect.objectContaining({ brand: 'Nissan', model: 'Kicks' }),
+      ]),
+    );
+    for (const [query, expected] of [
+      ['brand=Chevrolet', 2],
+      ['model=RAV4', 1],
+      ['category=Compact', 7],
+      ['location=Aeropuerto%20Quito', 11],
+    ] as const) {
+      const filtered = await request(app.getHttpServer())
+        .get(`/api/v2/vehicles?limit=100&${query}`)
+        .expect(200);
+      expect(filtered.body.total).toBe(expected);
+    }
     const detail = await request(app.getHttpServer())
       .get('/api/v2/vehicles/' + seedId(101))
       .expect(200);
@@ -162,17 +240,60 @@ describe('Marketplace API V2', () => {
   it('aprueba tarjetas demo arbitrarias y nunca expone ni almacena PAN/CVV', async () => {
     const reservationId = (globalThis as unknown as { reservationId: string })
       .reservationId;
-    const base = { reservationId, cardholderName: 'Ana Prueba', expiryMonth: 12, expiryYear: 2030, cvv: '123' };
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, expiryYear: new Date().getFullYear() - 1, cardNumber: arbitraryCardA }).expect(400);
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cvv: '12', cardNumber: arbitraryCardA }).expect(400);
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cardNumber: '1'.repeat(12) }).expect(400);
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cardNumber: '1'.repeat(14) + 'A' }).expect(400);
+    const base = {
+      reservationId,
+      cardholderName: 'Ana Prueba',
+      expiryMonth: 12,
+      expiryYear: 2030,
+      cvv: '123',
+    };
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(token, { type: 'bearer' })
+      .send({
+        ...base,
+        expiryYear: new Date().getFullYear() - 1,
+        cardNumber: arbitraryCardA,
+      })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(token, { type: 'bearer' })
+      .send({ ...base, cvv: '12', cardNumber: arbitraryCardA })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(token, { type: 'bearer' })
+      .send({ ...base, cardNumber: '1'.repeat(12) })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(token, { type: 'bearer' })
+      .send({ ...base, cardNumber: '1'.repeat(14) + 'A' })
+      .expect(400);
 
     const otherEmail = 'v2.other@example.test';
-    await request(app.getHttpServer()).post('/api/v2/auth/register').send({ firstName: 'Otro', lastName: 'Usuario', email: otherEmail, password, cedula: cedula('092345678'), phone: '+593981234567' }).expect(201);
-    const otherLogin = await request(app.getHttpServer()).post('/api/v2/auth/login').send({ email: otherEmail, password }).expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v2/auth/register')
+      .send({
+        firstName: 'Otro',
+        lastName: 'Usuario',
+        email: otherEmail,
+        password,
+        cedula: cedula('092345678'),
+        phone: '+593981234567',
+      })
+      .expect(201);
+    const otherLogin = await request(app.getHttpServer())
+      .post('/api/v2/auth/login')
+      .send({ email: otherEmail, password })
+      .expect(200);
     otherToken = otherLogin.body.accessToken;
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(otherToken, { type: 'bearer' }).send({ ...base, cardNumber: arbitraryCardA }).expect(403);
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(otherToken, { type: 'bearer' })
+      .send({ ...base, cardNumber: arbitraryCardA })
+      .expect(403);
 
     const paid = await request(app.getHttpServer())
       .post('/api/v2/payments/simulate')
@@ -192,8 +313,28 @@ describe('Marketplace API V2', () => {
       .send({ ...base, cardNumber: arbitraryCardA })
       .expect(409);
 
-    const secondReservation = await request(app.getHttpServer()).post('/api/v2/reservations').auth(token, { type: 'bearer' }).send({ vehicleId: seedId(102), startDate: '2030-01-10T10:00:00Z', endDate: '2030-01-13T10:00:00Z' }).expect(201);
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, reservationId: secondReservation.body.id, cardNumber: arbitraryCardB, cvv: '1234' }).expect(201).expect(({ body }) => expect(body.card).toEqual({ brand: 'UNKNOWN', last4: '3456' }));
+    const secondReservation = await request(app.getHttpServer())
+      .post('/api/v2/reservations')
+      .auth(token, { type: 'bearer' })
+      .send({
+        vehicleId: seedId(102),
+        startDate: '2030-01-10T10:00:00Z',
+        endDate: '2030-01-13T10:00:00Z',
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/v2/payments/simulate')
+      .auth(token, { type: 'bearer' })
+      .send({
+        ...base,
+        reservationId: secondReservation.body.id,
+        cardNumber: arbitraryCardB,
+        cvv: '1234',
+      })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body.card).toEqual({ brand: 'UNKNOWN', last4: '3456' }),
+      );
     const columns = await db.query<Array<{ column_name: string }>>(
       `SELECT column_name FROM information_schema.columns WHERE table_name='payments'`,
     );
@@ -206,7 +347,8 @@ describe('Marketplace API V2', () => {
   });
 
   it('serializa reservas pagadas, no pagadas y relaciones opcionales sin 500', async () => {
-    const paidId = (globalThis as unknown as { reservationId: string }).reservationId;
+    const paidId = (globalThis as unknown as { reservationId: string })
+      .reservationId;
     const unpaid = await request(app.getHttpServer())
       .post('/api/v2/reservations')
       .auth(token, { type: 'bearer' })
@@ -221,7 +363,9 @@ describe('Marketplace API V2', () => {
       .get('/api/v2/reservations/my')
       .auth(token, { type: 'bearer' })
       .expect(200);
-    const paid = mine.body.data.find((row: { id: string }) => row.id === paidId);
+    const paid = mine.body.data.find(
+      (row: { id: string }) => row.id === paidId,
+    );
     expect(paid).toMatchObject({
       status: 'CONFIRMED',
       vehicle: { id: seedId(101), name: 'Toyota Corolla' },
@@ -229,8 +373,12 @@ describe('Marketplace API V2', () => {
       payment: { status: 'APPROVED', brand: 'UNKNOWN', last4: '1111' },
       pickupDepot: { id: 1, location: 'Aeropuerto Quito' },
     });
-    expect(mine.body.data.find((row: { id: string }) => row.id === unpaid.body.id))
-      .toMatchObject({ payment: null, pickupDepot: { id: 3, location: 'Aeropuerto Guayaquil' } });
+    expect(
+      mine.body.data.find((row: { id: string }) => row.id === unpaid.body.id),
+    ).toMatchObject({
+      payment: null,
+      pickupDepot: { id: 3, location: 'Aeropuerto Guayaquil' },
+    });
 
     await request(app.getHttpServer())
       .get(`/api/v2/reservations/${paidId}`)
@@ -258,22 +406,37 @@ describe('Marketplace API V2', () => {
     await db.query(
       `INSERT INTO orders(id,vehicle_id,owner_id,preview_id,locator,status,route,starts_at,ends_at,price_per_day,total_amount,currency,extras,vehicle_details,driver_details,payment_reference)
        VALUES($1,$2,'legacy-owner',NULL,$3,'PENDING',$4,$5,$6,30,60,'USD','[]','{}','{}',NULL)`,
-      [legacyId, seedId(104), `LEGACY-${legacyId}`, { pickup: null }, new Date('2032-03-10T10:00:00Z'), new Date('2032-03-12T10:00:00Z')],
+      [
+        legacyId,
+        seedId(104),
+        `LEGACY-${legacyId}`,
+        { pickup: null },
+        new Date('2032-03-10T10:00:00Z'),
+        new Date('2032-03-12T10:00:00Z'),
+      ],
     );
     const admin = await request(app.getHttpServer())
       .get('/api/v2/reservations?status=PENDING&page=1&limit=100')
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(admin.body.data).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: unpaid.body.id, payment: null }),
-      expect.objectContaining({ id: legacyId, customer: null }),
-    ]));
-    expect(admin.body.data.every((row: { status: string }) => row.status === 'PENDING')).toBe(true);
+    expect(admin.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: unpaid.body.id, payment: null }),
+        expect.objectContaining({ id: legacyId, customer: null }),
+      ]),
+    );
+    expect(
+      admin.body.data.every(
+        (row: { status: string }) => row.status === 'PENDING',
+      ),
+    ).toBe(true);
 
     const search = await request(app.getHttpServer())
       .get(`/api/v2/reservations?search=${encodeURIComponent(email)}`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(search.body.data.some((row: { id: string }) => row.id === paidId)).toBe(true);
+    expect(
+      search.body.data.some((row: { id: string }) => row.id === paidId),
+    ).toBe(true);
   });
 });

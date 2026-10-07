@@ -54,7 +54,26 @@ export function PublicLayout() {
             >
               <Icon name="heart" />
             </Link>
-            {user ? <details className="auth-menu"><summary>{user.firstName || user.email}</summary><div className="auth-menu-items"><Link to="/perfil">Mi perfil</Link><Link to="/mis-reservas">Mis reservas</Link><Link to="/favoritos">Favoritos</Link>{user.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}<button type="button" onClick={logout}>Cerrar sesión</button></div></details> : <Link className="login-link" to="/login">Iniciar sesión</Link>}
+            {user ? (
+              <details className="auth-menu">
+                <summary>{user.firstName || user.email}</summary>
+                <div className="auth-menu-items">
+                  <Link to="/perfil">Mi perfil</Link>
+                  <Link to="/mis-reservas">Mis reservas</Link>
+                  <Link to="/favoritos">Favoritos</Link>
+                  {user.role === "ADMIN" && (
+                    <Link to="/admin">Panel de administración</Link>
+                  )}
+                  <button type="button" onClick={logout}>
+                    Cerrar sesión
+                  </button>
+                </div>
+              </details>
+            ) : (
+              <Link className="login-link" to="/login">
+                Iniciar sesión
+              </Link>
+            )}
             <Link className="btn btn-primary btn-sm nav-cta" to="/vehiculos">
               Alquila un auto <Icon name="arrow" size={16} />
             </Link>
@@ -78,7 +97,20 @@ export function PublicLayout() {
           <ThemeToggle />
           {links}
           <Link to="/favoritos">Mis favoritos</Link>
-          {user ? <><Link to="/perfil">Mi perfil</Link><Link to="/mis-reservas">Mis reservas</Link>{user.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}<button type="button" onClick={logout}>Cerrar sesión</button></> : <Link to="/login">Iniciar sesión</Link>}
+          {user ? (
+            <>
+              <Link to="/perfil">Mi perfil</Link>
+              <Link to="/mis-reservas">Mis reservas</Link>
+              {user.role === "ADMIN" && (
+                <Link to="/admin">Panel de administración</Link>
+              )}
+              <button type="button" onClick={logout}>
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <Link to="/login">Iniciar sesión</Link>
+          )}
         </nav>
       </Drawer>
       <main id="contenido">
@@ -119,7 +151,9 @@ export function PublicLayout() {
         <div className="container footer-bottom">
           <span>© {new Date().getFullYear()} Maneja de Una</span>
           <span>Tu camino empieza aquí.</span>
-          {user?.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}
+          {user?.role === "ADMIN" && (
+            <Link to="/admin">Panel de administración</Link>
+          )}
         </div>
       </footer>
       <Modal open={!!info} onClose={() => setInfo("")} title={info}>

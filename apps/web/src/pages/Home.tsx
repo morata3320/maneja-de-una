@@ -114,7 +114,14 @@ export function Home() {
                   <h3>{category}</h3>
                   <p>Opciones reales disponibles</p>
                 </div>
-                <img src={vehicles.find((vehicle) => vehicle.category === category)?.image} alt={`Categoría ${category}`} loading="lazy" />
+                <img
+                  src={
+                    vehicles.find((vehicle) => vehicle.category === category)
+                      ?.image
+                  }
+                  alt={`Categoría ${category}`}
+                  loading="lazy"
+                />
                 <span className="round-arrow">
                   <Icon name="arrow" />
                 </span>

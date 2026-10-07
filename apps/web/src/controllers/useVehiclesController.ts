@@ -8,6 +8,38 @@ const art: Record<string, string> = {
   Compact: "/images/compact.svg",
   Pickup: "/images/pickup.svg",
 };
+const vehicleImages: Record<string, string> = {
+  "toyota-corolla": "toyota-corolla.webp",
+  "kia-sportage": "kia-sportage.webp",
+  "hyundai-accent": "hyundai-accent.webp",
+  "toyota-rav4": "toyota-rav4.webp",
+  "kia-rio": "kia-rio.webp",
+  "chevrolet-onix": "chevrolet-onix.webp",
+  "nissan-sentra": "nissan-sentra.webp",
+  "hyundai-tucson": "hyundai-tucson.webp",
+  "chevrolet-tracker": "chevrolet-tracker.webp",
+  "kia-seltos": "kia-seltos.webp",
+  "mazda-mazda-3": "mazda-3.webp",
+  "suzuki-swift": "suzuki-swift.webp",
+  "renault-duster": "renault-duster.webp",
+  "ford-ecosport": "ford-ecosport.webp",
+  "volkswagen-t-cross": "volkswagen-tcross.webp",
+  "nissan-kicks": "nissan-kicks.webp",
+};
+const slug = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+export const getVehiclePlaceholder = (category: string) =>
+  art[category] || "/images/sedan.svg";
+export const getVehicleImage = (brand: string, model: string) => {
+  const filename = vehicleImages[`${slug(brand)}-${slug(model)}`];
+  return filename ? `/images/vehicles/${filename}` : "/images/sedan.svg";
+};
 export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   id: v.id,
   brand: v.brand,
@@ -30,10 +62,11 @@ export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   location: v.location,
   rating: 4.8,
   reviews: 0,
-  image: art[v.category] || "/images/sedan.svg",
+  image: getVehicleImage(v.brand, v.model),
   color: "#e9efec",
   featured: v.status === "AVAILABLE",
   description: v.description,
+  status: v.status,
   pickupDepots: v.pickupDepots ?? [],
 });
 export function useVehiclesController(query = "") {
@@ -48,7 +81,10 @@ export function useVehiclesController(query = "") {
       url: `/vehicles${query}`,
       signal: controller.signal,
     })
-      .then((r) => { setVehicles(r.data.map(mapVehicle)); setTotal(r.total); })
+      .then((r) => {
+        setVehicles(r.data.map(mapVehicle));
+        setTotal(r.total);
+      })
       .catch((e) => {
         if (!controller.signal.aborted)
           setError(e instanceof Error ? e.message : "Error");
@@ -59,7 +95,25 @@ export function useVehiclesController(query = "") {
   return { vehicles, total, loading, error };
 }
 export function useVehicleController(id?: string) {
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
-  useEffect(() => { if (!id) { setLoading(false); return; } const controller = new AbortController(); api<ApiVehicle>({ url: `/vehicles/${id}`, signal: controller.signal }).then((value) => setVehicle(mapVehicle(value))).catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Vehículo no encontrado"); }).finally(() => setLoading(false)); return () => controller.abort(); }, [id]);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    api<ApiVehicle>({ url: `/vehicles/${id}`, signal: controller.signal })
+      .then((value) => setVehicle(mapVehicle(value)))
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error ? reason.message : "Vehículo no encontrado",
+          );
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [id]);
   return { vehicle, loading, error };
 }

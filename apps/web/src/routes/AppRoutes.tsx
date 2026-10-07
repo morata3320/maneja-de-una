@@ -45,18 +45,83 @@ export function AppRoutes() {
       </Route>
       <Route path="admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboardApi />} />
-        <Route path="vehiculos" element={<AdminApiCollection resource="vehicles" title="Vehículos" />} />
-        <Route path="reservas" element={<AdminApiCollection resource="reservations" title="Reservas" action="cancel" />} />
-        <Route path="usuarios" element={<AdminApiCollection resource="users" title="Clientes" />} />
-        <Route path="clientes" element={<AdminApiCollection resource="users" title="Clientes" />} />
-        <Route path="marcas" element={<AdminApiCollection resource="brands" title="Marcas" create />} />
-        <Route path="modelos" element={<AdminApiCollection resource="vehicle-models" title="Modelos" />} />
-        <Route path="categorias" element={<AdminApiCollection resource="categories" title="Categorías" create />} />
-        <Route path="ubicaciones" element={<AdminApiCollection resource="locations" title="Ubicaciones" />} />
-        <Route path="proveedores" element={<AdminApiCollection resource="suppliers" title="Proveedores" create />} />
-        <Route path="agencias" element={<AdminApiCollection resource="depots" title="Agencias" />} />
-        <Route path="calificaciones" element={<AdminApiCollection resource="depot-scores" title="Calificaciones" />} />
-        <Route path="pagos" element={<AdminApiCollection resource="payments" title="Pagos" />} />
+        <Route
+          path="vehiculos"
+          element={<AdminApiCollection resource="vehicles" title="Vehículos" />}
+        />
+        <Route
+          path="reservas"
+          element={
+            <AdminApiCollection
+              resource="reservations"
+              title="Reservas"
+              action="cancel"
+            />
+          }
+        />
+        <Route
+          path="usuarios"
+          element={<AdminApiCollection resource="users" title="Clientes" />}
+        />
+        <Route
+          path="clientes"
+          element={<AdminApiCollection resource="users" title="Clientes" />}
+        />
+        <Route
+          path="marcas"
+          element={
+            <AdminApiCollection resource="brands" title="Marcas" create />
+          }
+        />
+        <Route
+          path="modelos"
+          element={
+            <AdminApiCollection resource="vehicle-models" title="Modelos" />
+          }
+        />
+        <Route
+          path="categorias"
+          element={
+            <AdminApiCollection
+              resource="categories"
+              title="Categorías"
+              create
+            />
+          }
+        />
+        <Route
+          path="ubicaciones"
+          element={
+            <AdminApiCollection resource="locations" title="Ubicaciones" />
+          }
+        />
+        <Route
+          path="proveedores"
+          element={
+            <AdminApiCollection
+              resource="suppliers"
+              title="Proveedores"
+              create
+            />
+          }
+        />
+        <Route
+          path="agencias"
+          element={<AdminApiCollection resource="depots" title="Agencias" />}
+        />
+        <Route
+          path="calificaciones"
+          element={
+            <AdminApiCollection
+              resource="depot-scores"
+              title="Calificaciones"
+            />
+          }
+        />
+        <Route
+          path="pagos"
+          element={<AdminApiCollection resource="payments" title="Pagos" />}
+        />
       </Route>
     </Routes>
   );

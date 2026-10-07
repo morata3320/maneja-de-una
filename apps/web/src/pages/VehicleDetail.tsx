@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useVehicleController, useVehiclesController } from "../controllers/useVehiclesController";
+import {
+  useVehicleController,
+  useVehiclesController,
+} from "../controllers/useVehiclesController";
 import { VehicleArt, VehicleCard } from "../components/vehicle/VehicleCard";
 import {
   Badge,
@@ -31,7 +34,12 @@ export function VehicleDetail() {
     if (vehicle?.pickupDepots.length && !pickupDepotId)
       setPickupDepotId(String(vehicle.pickupDepots[0].id));
   }, [vehicle, pickupDepotId]);
-  if (loading) return <p className="container section" role="status">Cargando vehÃ­culoâ€¦</p>;
+  if (loading)
+    return (
+      <p className="container section" role="status">
+        Cargando vehÃ­culoâ€¦
+      </p>
+    );
   if (!vehicle)
     return (
       <EmptyState

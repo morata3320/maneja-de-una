@@ -103,7 +103,13 @@ export function Checkout() {
     setBusy(true);
     setError("");
     try {
-      const result = await api<{ paymentReference: string; amount: number; currency: string; status: string; card: { brand: string; last4: string } }>({
+      const result = await api<{
+        paymentReference: string;
+        amount: number;
+        currency: string;
+        status: string;
+        card: { brand: string; last4: string };
+      }>({
         method: "POST",
         url: "/payments/simulate",
         data: {
@@ -146,9 +152,10 @@ export function Checkout() {
             {vehicle.brand} {vehicle.model}
           </Badge>
           <p>
-            {(vehicle.pickupDepots?.find(
+            {vehicle.pickupDepots?.find(
               (depot) => String(depot.id) === pickupDepotId,
-            )?.location ?? vehicle.location)} · ${vehicle.pricePerDay}/día
+            )?.location ?? vehicle.location}{" "}
+            · ${vehicle.pricePerDay}/día
           </p>
           {step === 1 && (
             <form
@@ -315,9 +322,17 @@ export function Checkout() {
                 Referencia: <strong>{confirmation.paymentReference}</strong>
               </p>
               <p>
-                Total: <strong>${confirmation.amount.toFixed(2)} {confirmation.currency}</strong>
+                Total:{" "}
+                <strong>
+                  ${confirmation.amount.toFixed(2)} {confirmation.currency}
+                </strong>
               </p>
-              <p>Tarjeta: <strong>{confirmation.card.brand} •••• {confirmation.card.last4}</strong></p>
+              <p>
+                Tarjeta:{" "}
+                <strong>
+                  {confirmation.card.brand} •••• {confirmation.card.last4}
+                </strong>
+              </p>
               <Link className="btn btn-primary" to="/mis-reservas">
                 Ver mis reservas
               </Link>

@@ -3,7 +3,7 @@ export interface Vehicle {
   brand: string;
   model: string;
   year: number;
-  category: "SUV" | "Sedán" | "Pickup" | "Hatchback";
+  category: "SUV" | "Sedán" | "Compact" | "Pickup" | "Hatchback";
   transmission: "Automática" | "Manual";
   fuel: "Gasolina" | "Híbrido" | "Diésel";
   seats: number;
@@ -17,5 +17,6 @@ export interface Vehicle {
   color: string;
   featured: boolean;
   description: string;
+  status: string;
   pickupDepots: import("../models").PickupDepot[];
 }

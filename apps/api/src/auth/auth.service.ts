@@ -73,7 +73,10 @@ export class AuthService {
     );
     if (!user || !valid)
       throw new UnauthorizedException('Credenciales inválidas.');
-    const accessToken = await new SignJWT({ role: user.role, email: user.email })
+    const accessToken = await new SignJWT({
+      role: user.role,
+      email: user.email,
+    })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(user.id)
       .setIssuedAt()

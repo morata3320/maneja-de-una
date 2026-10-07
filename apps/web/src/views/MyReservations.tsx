@@ -10,14 +10,14 @@ export function MyReservations() {
   const load = () => {
     setLoading(true);
     setError("");
-    return (
-    api<{ data: Reservation[] }>({ url: "/reservations/my" })
+    return api<{ data: Reservation[] }>({ url: "/reservations/my" })
       .then((r) => setRows(r.data))
       .catch((e) =>
-        setError(e instanceof Error ? e.message : "No fue posible cargar las reservas"),
+        setError(
+          e instanceof Error ? e.message : "No fue posible cargar las reservas",
+        ),
       )
-      .finally(() => setLoading(false))
-    );
+      .finally(() => setLoading(false));
   };
   useEffect(() => {
     void load();
@@ -29,7 +29,9 @@ export function MyReservations() {
       await load();
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "No fue posible cancelar la reserva",
+        reason instanceof Error
+          ? reason.message
+          : "No fue posible cancelar la reserva",
       );
     }
   }
@@ -52,14 +54,24 @@ export function MyReservations() {
                     : "danger"
               }
             >
-              {({ PENDING: "Pendiente", CONFIRMED: "Confirmada", CANCELLED: "Cancelada", COMPLETED: "Completada" } as Record<string, string>)[r.status] ?? r.status}
+              {(
+                {
+                  PENDING: "Pendiente",
+                  CONFIRMED: "Confirmada",
+                  CANCELLED: "Cancelada",
+                  COMPLETED: "Completada",
+                } as Record<string, string>
+              )[r.status] ?? r.status}
             </Badge>
             <h2>{r.vehicle?.name || `Reserva ${r.id.slice(0, 8)}`}</h2>
             <p>
               {new Date(r.startsAt).toLocaleDateString()} →{" "}
               {new Date(r.endsAt).toLocaleDateString()}
             </p>
-            <p>Lugar de recogida: <strong>{r.pickupLocation || "No registrado"}</strong></p>
+            <p>
+              Lugar de recogida:{" "}
+              <strong>{r.pickupLocation || "No registrado"}</strong>
+            </p>
             <p>
               Total:{" "}
               <strong>
@@ -68,7 +80,9 @@ export function MyReservations() {
             </p>
             <p>
               Pago: <strong>{r.payment?.status || "Pendiente"}</strong>
-              {r.payment?.paymentReference && <> · {r.payment.paymentReference}</>}
+              {r.payment?.paymentReference && (
+                <> · {r.payment.paymentReference}</>
+              )}
             </p>
             {["PENDING", "CONFIRMED"].includes(r.status) && (
               <Button variant="outline" onClick={() => void cancel(r.id)}>

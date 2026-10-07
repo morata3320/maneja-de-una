@@ -9,7 +9,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <LocalExperience>
-          <a className="skip-link" href="#contenido">Saltar al contenido</a>
+          <a className="skip-link" href="#contenido">
+            Saltar al contenido
+          </a>
           <AppRoutes />
         </LocalExperience>
       </AuthProvider>

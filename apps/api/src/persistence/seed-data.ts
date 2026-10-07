@@ -1,5 +1,6 @@
 import type { DataSource } from 'typeorm';
 import { hash } from 'bcrypt';
+import { seedVehicleCatalog } from './catalog-seed-data';
 export const seedId = (n: number): string =>
   '10000000-0000-4000-8000-' + String(n).padStart(12, '0');
 export async function seedDevelopment(db: DataSource): Promise<void> {
@@ -102,4 +103,5 @@ export async function seedDevelopment(db: DataSource): Promise<void> {
       );
     }
   });
+  await seedVehicleCatalog(db);
 }

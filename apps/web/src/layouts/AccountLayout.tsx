@@ -4,7 +4,12 @@ import { ThemeToggle } from "../components/ui";
 export function AccountLayout() {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
-  if (loading) return <p className="container section" role="status">Restaurando sesión…</p>;
+  if (loading)
+    return (
+      <p className="container section" role="status">
+        Restaurando sesión…
+      </p>
+    );
   if (!user) return <Navigate to="/login" replace state={{ from: pathname }} />;
   return (
     <div className="container section account-layout">

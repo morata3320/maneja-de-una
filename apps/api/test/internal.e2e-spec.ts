@@ -153,7 +153,7 @@ describe('API interna con PostgreSQL real', () => {
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
     expect(vehicles.body.data).toHaveLength(5);
-    expect(vehicles.body.total).toBe(14);
+    expect(vehicles.body.total).toBe(27);
     expect(
       vehicles.body.data.every(
         (v: { status: string }) => v.status === 'AVAILABLE',

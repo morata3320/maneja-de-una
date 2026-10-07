@@ -24,11 +24,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       theme,
-      toggleTheme: () => setTheme((current) => current === "dark" ? "light" : "dark"),
+      toggleTheme: () =>
+        setTheme((current) => (current === "dark" ? "light" : "dark")),
     }),
     [theme],
   );
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

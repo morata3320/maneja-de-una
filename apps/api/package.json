@@ -27,6 +27,7 @@
     "migration:run": "npm run build && node dist/persistence/migrate.js",
     "migration:revert": "npm run build && node dist/persistence/migrate.js --revert",
     "seed": "npm run build && node dist/persistence/seed.js",
+    "seed:catalog": "npm run build && node dist/persistence/seed-catalog.js",
     "auth:token": "node scripts/auth-token.mts"
   },
   "dependencies": {

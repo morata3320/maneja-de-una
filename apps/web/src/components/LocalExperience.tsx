@@ -19,7 +19,10 @@ export function LocalExperience({ children }: { children: ReactNode }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => {
-    if (!user) { setFavorites([]); return; }
+    if (!user) {
+      setFavorites([]);
+      return;
+    }
     api<Array<{ id: string }>>({ url: "/favorites" })
       .then((rows) => setFavorites(rows.map((row) => row.id)))
       .catch(() => undefined);

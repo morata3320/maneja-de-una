@@ -1,8 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  registerDecorator,
-  type ValidationOptions,
-} from 'class-validator';
+import { registerDecorator, type ValidationOptions } from 'class-validator';
 
 export const Trim = () =>
   Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
@@ -37,8 +34,7 @@ export function IsEcuadorianCedula(options?: ValidationOptions) {
       validator: {
         validate: (value: unknown) =>
           typeof value === 'string' && isEcuadorianCedula(value),
-      defaultMessage: () =>
-          'Cédula ecuatoriana inválida',
+        defaultMessage: () => 'Cédula ecuatoriana inválida',
       },
     });
 }
