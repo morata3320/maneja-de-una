@@ -17,4 +17,5 @@ export interface Vehicle {
   color: string;
   featured: boolean;
   description: string;
+  pickupDepots: import("../models").PickupDepot[];
 }

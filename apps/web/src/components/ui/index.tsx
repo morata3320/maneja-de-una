@@ -6,6 +6,7 @@ import type {
   SelectHTMLAttributes,
 } from "react";
 import { Icon } from "./Icon";
+import { useTheme } from "../../controllers/ThemeContext";
 export function Button({
   variant = "primary",
   size = "md",
@@ -20,6 +21,21 @@ export function Button({
       className={`btn btn-${variant} btn-${size} ${className}`}
       {...props}
     />
+  );
+}
+export function ThemeToggle({ className = "" }: { className?: string }) {
+  const { theme, toggleTheme } = useTheme();
+  const next = theme === "dark" ? "claro" : "oscuro";
+  return (
+    <Button
+      className={`theme-toggle ${className}`}
+      variant="ghost"
+      onClick={toggleTheme}
+      aria-label={`Cambiar a modo ${next}`}
+      title={`Cambiar a modo ${next}`}
+    >
+      <Icon name={theme === "dark" ? "sun" : "moon"} />
+    </Button>
   );
 }
 export function Input({

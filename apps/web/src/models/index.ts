@@ -29,6 +29,15 @@ export interface ApiVehicle {
   pricePerDay: number;
   description: string;
   status: string;
+  pickupDepots?: PickupDepot[];
+}
+export interface PickupDepot {
+  id: number;
+  name: string;
+  locationId: string;
+  location: string;
+  city: string;
+  province: string;
 }
 export interface Reservation {
   id: string;
@@ -39,6 +48,13 @@ export interface Reservation {
   currency: string;
   status: string;
   paymentStatus?: string;
+  paymentReference?: string | null;
+  createdAt: string;
+  vehicle: { id: string; brand: string | null; model: string | null; name: string } | null;
+  customer: { id: string; firstName: string | null; lastName: string | null; email: string | null } | null;
+  payment: { paymentReference: string | null; status: string | null; amount: number | null; brand: string | null; last4: string | null } | null;
+  pickupDepot: { id: number; name: string; locationId: string | null; location: string | null } | null;
+  pickupLocation: string | null;
 }
 export interface Payment {
   paymentReference: string;

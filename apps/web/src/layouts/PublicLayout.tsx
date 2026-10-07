@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Button, Drawer, Modal } from "../components/ui";
+import { Button, Drawer, Modal, ThemeToggle } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 import { useExperience } from "../components/LocalExperience";
 import { useAuth } from "../controllers/AuthContext";
@@ -46,6 +46,7 @@ export function PublicLayout() {
             {links}
           </nav>
           <div className="nav-actions">
+            <ThemeToggle />
             <Link
               className="nav-favorite"
               to="/favoritos"
@@ -74,6 +75,7 @@ export function PublicLayout() {
         title="Tu próximo destino"
       >
         <nav className="drawer-nav">
+          <ThemeToggle />
           {links}
           <Link to="/favoritos">Mis favoritos</Link>
           {user ? <><Link to="/perfil">Mi perfil</Link><Link to="/mis-reservas">Mis reservas</Link>{user.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}<button type="button" onClick={logout}>Cerrar sesión</button></> : <Link to="/login">Iniciar sesión</Link>}

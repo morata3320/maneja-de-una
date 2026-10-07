@@ -196,16 +196,21 @@ button:disabled {
   min-width: 0;
 }
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   min-width: 0;
-  background: var(--color-surface);
+  background: var(--color-input);
   color: var(--color-text);
   padding: 11px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 14px;
   min-height: 44px;
+}
+.field option {
+  background: var(--color-input);
+  color: var(--color-text);
 }
 .field input::placeholder {
   color: #7e8a91;
@@ -417,6 +422,105 @@ button:disabled {
 .drawer-nav button { padding: 15px 12px; border: 0; border-radius: 8px; background: var(--color-surface-secondary); color: inherit; text-align: left; font: inherit; }
 .mobile-menu {
   display: none;
+}
+.theme-toggle {
+  width: 42px;
+  min-width: 42px;
+  padding-inline: 9px;
+  border: 1px solid var(--color-border);
+}
+
+:root[data-theme="dark"] .site-header,
+:root[data-theme="dark"] .search-bar,
+:root[data-theme="dark"] .vehicle-card,
+:root[data-theme="dark"] .booking-card,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .modal-content,
+:root[data-theme="dark"] .data-table,
+:root[data-theme="dark"] .admin-toolbar,
+:root[data-theme="dark"] .admin-topbar,
+:root[data-theme="dark"] .account-layout > aside {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+:root[data-theme="dark"] .hero,
+:root[data-theme="dark"] .catalog-search,
+:root[data-theme="dark"] .category-section,
+:root[data-theme="dark"] .site-footer,
+:root[data-theme="dark"] .category-card,
+:root[data-theme="dark"] .gallery-thumbs button,
+:root[data-theme="dark"] .spec-grid > div,
+:root[data-theme="dark"] .empty-state,
+:root[data-theme="dark"] .table-footer,
+:root[data-theme="dark"] .auth-form-wrap,
+:root[data-theme="dark"] .auth-visual,
+:root[data-theme="dark"] .comparison-table tbody tr:nth-child(even),
+:root[data-theme="dark"] .admin-layout,
+:root[data-theme="dark"] .admin-callout,
+:root[data-theme="dark"] .data-table th,
+:root[data-theme="dark"] .fleet-donut > span {
+  background: var(--color-surface-secondary);
+  color: var(--color-text);
+}
+:root[data-theme="dark"] .scene-tag,
+:root[data-theme="dark"] .vehicle-card .badge,
+:root[data-theme="dark"] .vehicle-favorite,
+:root[data-theme="dark"] .round-arrow,
+:root[data-theme="dark"] .gallery-label,
+:root[data-theme="dark"] .avatar,
+:root[data-theme="dark"] .empty-icon {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+:root[data-theme="dark"] .comparison-table,
+:root[data-theme="dark"] .comparison-scroll,
+:root[data-theme="dark"] .gallery-thumbs button,
+:root[data-theme="dark"] .auth-layout,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .fleet-panel {
+  border-color: var(--color-border);
+}
+:root[data-theme="dark"] .comparison-scroll,
+:root[data-theme="dark"] .account-layout > aside a.active {
+  background: var(--color-surface);
+}
+:root[data-theme="dark"] .vehicle-specs,
+:root[data-theme="dark"] .data-table td {
+  border-color: var(--color-border);
+}
+:root[data-theme="dark"] .scene-word {
+  color: #29383e;
+}
+:root[data-theme="dark"] .badge-neutral {
+  background: #2a383e;
+  color: var(--color-text-secondary);
+}
+:root[data-theme="dark"] .badge-blue {
+  background: #27365d;
+  color: #b9c7ff;
+}
+:root[data-theme="dark"] .badge-success {
+  background: #173b30;
+}
+:root[data-theme="dark"] .badge-warning {
+  background: #49371a;
+}
+:root[data-theme="dark"] .badge-danger {
+  background: #4b252b;
+}
+:root[data-theme="dark"] dialog,
+:root[data-theme="dark"] .modal {
+  color: var(--color-text);
+}
+:root[data-theme="dark"] .modal::backdrop {
+  background: var(--color-overlay);
+}
+:root[data-theme="dark"] .data-table th,
+:root[data-theme="dark"] .data-table td {
+  border-color: var(--color-border);
+}
+:root[data-theme="dark"] input[type="date"] {
+  color-scheme: dark;
 }
 .hero {
   background: #eef2ef;

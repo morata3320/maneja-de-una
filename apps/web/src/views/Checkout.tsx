@@ -7,6 +7,7 @@ import {
   EmptyState,
   Input,
   PageHeader,
+  Select,
 } from "../components/ui";
 import { api } from "../services/apiClient";
 import type { ApiVehicle } from "../models";
@@ -42,9 +43,20 @@ export function Checkout() {
     [expiryMonth, setMonth] = useState(""),
     [expiryYear, setYear] = useState(""),
     [cvv, setCvv] = useState("");
+  const [pickupDepotId, setPickupDepotId] = useState(params.get("depot") || "");
   useEffect(() => {
     api<ApiVehicle>({ url: `/vehicles/${vehicleId}` })
-      .then(setVehicle)
+      .then((value) => {
+        setVehicle(value);
+        setPickupDepotId((current) => {
+          const depots = value.pickupDepots ?? [];
+          return depots.some((depot) => String(depot.id) === current)
+            ? current
+            : depots.length
+              ? String(depots[0].id)
+              : "";
+        });
+      })
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Vehiculo no encontrado"),
       );
@@ -59,7 +71,7 @@ export function Checkout() {
   );
   const estimated = days * (vehicle?.pricePerDay || 0);
   async function reserve() {
-    if (!days) {
+    if (!days || !pickupDepotId) {
       setError("La devolucion debe ser posterior a la recogida.");
       return;
     }
@@ -73,6 +85,7 @@ export function Checkout() {
           vehicleId,
           startDate,
           endDate,
+          pickupDepotId: Number(pickupDepotId),
           driver: { firstName, lastName, cedula, phone },
         },
       });
@@ -133,7 +146,9 @@ export function Checkout() {
             {vehicle.brand} {vehicle.model}
           </Badge>
           <p>
-            {vehicle.location} · ${vehicle.pricePerDay}/dia
+            {(vehicle.pickupDepots?.find(
+              (depot) => String(depot.id) === pickupDepotId,
+            )?.location ?? vehicle.location)} · ${vehicle.pricePerDay}/día
           </p>
           {step === 1 && (
             <form
@@ -150,6 +165,19 @@ export function Checkout() {
                 onChange={(e) => setStart(e.target.value)}
                 required
               />
+              <Select
+                label="Lugar de recogida"
+                value={pickupDepotId}
+                onChange={(event) => setPickupDepotId(event.target.value)}
+                required
+              >
+                <option value="">Selecciona una agencia</option>
+                {vehicle.pickupDepots?.map((depot) => (
+                  <option value={depot.id} key={depot.id}>
+                    {depot.location || depot.name}
+                  </option>
+                ))}
+              </Select>
               <Input
                 label="Devolucion"
                 type="date"
@@ -162,7 +190,7 @@ export function Checkout() {
                 <strong>{days} dias</strong>
                 <strong>${estimated.toFixed(2)}</strong>
               </div>
-              <Button type="submit" disabled={!days}>
+              <Button type="submit" disabled={!days || !pickupDepotId}>
                 Continuar
               </Button>
             </form>

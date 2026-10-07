@@ -32,6 +32,8 @@ const paths: Record<string, string> = {
   mail: "M3 5h18v14H3Zm0 0 9 8 9-8",
   chevron: "m9 5 7 7-7 7",
   info: "M12 11v6m0-10v1M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
+  sun: "M12 4V2m0 20v-2M4 12H2m20 0h-2M5.64 5.64 4.22 4.22m15.56 15.56-1.42-1.42M18.36 5.64l1.42-1.42M4.22 19.78l1.42-1.42M17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z",
+  moon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z",
 };
 export function Icon({
   name,

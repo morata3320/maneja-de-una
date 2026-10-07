@@ -34,6 +34,7 @@ export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   color: "#e9efec",
   featured: v.status === "AVAILABLE",
   description: v.description,
+  pickupDepots: v.pickupDepots ?? [],
 });
 export function useVehiclesController(query = "") {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]),

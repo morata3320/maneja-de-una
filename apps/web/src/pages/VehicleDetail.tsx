@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useVehicleController, useVehiclesController } from "../controllers/useVehiclesController";
 import { VehicleArt, VehicleCard } from "../components/vehicle/VehicleCard";
@@ -24,8 +24,13 @@ export function VehicleDetail() {
   const [start, setStart] = useState("2026-10-12");
   const [end, setEnd] = useState("2026-10-15");
   const [open, setOpen] = useState(false);
+  const [pickupDepotId, setPickupDepotId] = useState("");
   const { favorites, comparison, toggleFavorite, toggleCompare } =
     useExperience();
+  useEffect(() => {
+    if (vehicle?.pickupDepots.length && !pickupDepotId)
+      setPickupDepotId(String(vehicle.pickupDepots[0].id));
+  }, [vehicle, pickupDepotId]);
   if (loading) return <p className="container section" role="status">Cargando vehÃ­culoâ€¦</p>;
   if (!vehicle)
     return (
@@ -159,14 +164,27 @@ export function VehicleDetail() {
             className="booking-card card"
             onSubmit={(e) => {
               e.preventDefault();
-              if (valid) navigate(`/checkout/${id}?start=${start}&end=${end}`);
+              if (valid && pickupDepotId)
+                navigate(
+                  `/checkout/${id}?start=${start}&end=${end}&depot=${pickupDepotId}`,
+                );
             }}
           >
             <span className="eyebrow">TU PRÓXIMO VIAJE</span>
             <PriceDisplay price={vehicle.pricePerDay} />
             <p>Un buen plan empieza con un buen auto.</p>
-            <Select label="Lugar de recogida">
-              <option>{vehicle.location}</option>
+            <Select
+              label="Lugar de recogida"
+              value={pickupDepotId}
+              onChange={(event) => setPickupDepotId(event.target.value)}
+              required
+            >
+              <option value="">Selecciona una agencia</option>
+              {vehicle.pickupDepots.map((depot) => (
+                <option value={depot.id} key={depot.id}>
+                  {depot.location || depot.name}
+                </option>
+              ))}
             </Select>
             <Input
               label="Recogida"
@@ -198,7 +216,7 @@ export function VehicleDetail() {
                 La devolución debe ser posterior a la recogida.
               </p>
             )}
-            <Button size="lg" type="submit" disabled={!valid}>
+            <Button size="lg" type="submit" disabled={!valid || !pickupDepotId}>
               Reservar ahora <Icon name="arrow" />
             </Button>
             <small>

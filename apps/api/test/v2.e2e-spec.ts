@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/configure-app';
 import { seedId } from '../src/persistence/seed-data';
+import { randomUUID } from 'node:crypto';
 
 const cedula = (firstNine: string) => {
   const sum = firstNine.split('').reduce((total, value, index) => {
@@ -15,7 +16,7 @@ const cedula = (firstNine: string) => {
 };
 
 describe('Marketplace API V2', () => {
-  let app: INestApplication, db: DataSource, token: string, adminToken: string;
+  let app: INestApplication, db: DataSource, token: string, adminToken: string, otherToken: string;
   const email = 'v2.user@example.test',
     password = 'Password9',
     arbitraryCardA = '1'.repeat(15),
@@ -110,6 +111,9 @@ describe('Marketplace API V2', () => {
       href: '/api/v2/reservations',
       method: 'POST',
     });
+    expect(detail.body.pickupDepots).toEqual([
+      expect.objectContaining({ id: 1, location: 'Aeropuerto Quito' }),
+    ]);
   });
 
   it('agrega favorito, rechaza duplicado y elimina', async () => {
@@ -131,9 +135,15 @@ describe('Marketplace API V2', () => {
   it('crea reserva, evita double booking y protege propiedad', async () => {
     const body = {
       vehicleId: seedId(101),
+      pickupDepotId: 1,
       startDate: '2030-01-10T10:00:00Z',
       endDate: '2030-01-13T10:00:00Z',
     };
+    await request(app.getHttpServer())
+      .post('/api/v2/reservations')
+      .auth(token, { type: 'bearer' })
+      .send({ ...body, pickupDepotId: 2 })
+      .expect(400);
     const created = await request(app.getHttpServer())
       .post('/api/v2/reservations')
       .auth(token, { type: 'bearer' })
@@ -161,7 +171,8 @@ describe('Marketplace API V2', () => {
     const otherEmail = 'v2.other@example.test';
     await request(app.getHttpServer()).post('/api/v2/auth/register').send({ firstName: 'Otro', lastName: 'Usuario', email: otherEmail, password, cedula: cedula('092345678'), phone: '+593981234567' }).expect(201);
     const otherLogin = await request(app.getHttpServer()).post('/api/v2/auth/login').send({ email: otherEmail, password }).expect(200);
-    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(otherLogin.body.accessToken, { type: 'bearer' }).send({ ...base, cardNumber: arbitraryCardA }).expect(403);
+    otherToken = otherLogin.body.accessToken;
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(otherToken, { type: 'bearer' }).send({ ...base, cardNumber: arbitraryCardA }).expect(403);
 
     const paid = await request(app.getHttpServer())
       .post('/api/v2/payments/simulate')
@@ -192,5 +203,77 @@ describe('Marketplace API V2', () => {
     expect(columns.map((c) => c.column_name)).toEqual(
       expect.arrayContaining(['card_last4', 'card_brand', 'payment_reference']),
     );
+  });
+
+  it('serializa reservas pagadas, no pagadas y relaciones opcionales sin 500', async () => {
+    const paidId = (globalThis as unknown as { reservationId: string }).reservationId;
+    const unpaid = await request(app.getHttpServer())
+      .post('/api/v2/reservations')
+      .auth(token, { type: 'bearer' })
+      .send({
+        vehicleId: seedId(103),
+        pickupDepotId: 3,
+        startDate: '2031-02-10T10:00:00Z',
+        endDate: '2031-02-12T10:00:00Z',
+      })
+      .expect(201);
+    const mine = await request(app.getHttpServer())
+      .get('/api/v2/reservations/my')
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    const paid = mine.body.data.find((row: { id: string }) => row.id === paidId);
+    expect(paid).toMatchObject({
+      status: 'CONFIRMED',
+      vehicle: { id: seedId(101), name: 'Toyota Corolla' },
+      customer: { email },
+      payment: { status: 'APPROVED', brand: 'UNKNOWN', last4: '1111' },
+      pickupDepot: { id: 1, location: 'Aeropuerto Quito' },
+    });
+    expect(mine.body.data.find((row: { id: string }) => row.id === unpaid.body.id))
+      .toMatchObject({ payment: null, pickupDepot: { id: 3, location: 'Aeropuerto Guayaquil' } });
+
+    await request(app.getHttpServer())
+      .get(`/api/v2/reservations/${paidId}`)
+      .auth(token, { type: 'bearer' })
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          id: paidId,
+          payment: { status: 'APPROVED' },
+          customer: { email },
+        }),
+      );
+
+    await request(app.getHttpServer())
+      .get(`/api/v2/reservations/${paidId}`)
+      .auth(otherToken, { type: 'bearer' })
+      .expect(403);
+    const otherMine = await request(app.getHttpServer())
+      .get('/api/v2/reservations/my')
+      .auth(otherToken, { type: 'bearer' })
+      .expect(200);
+    expect(otherMine.body.data).toHaveLength(0);
+
+    const legacyId = randomUUID();
+    await db.query(
+      `INSERT INTO orders(id,vehicle_id,owner_id,preview_id,locator,status,route,starts_at,ends_at,price_per_day,total_amount,currency,extras,vehicle_details,driver_details,payment_reference)
+       VALUES($1,$2,'legacy-owner',NULL,$3,'PENDING',$4,$5,$6,30,60,'USD','[]','{}','{}',NULL)`,
+      [legacyId, seedId(104), `LEGACY-${legacyId}`, { pickup: null }, new Date('2032-03-10T10:00:00Z'), new Date('2032-03-12T10:00:00Z')],
+    );
+    const admin = await request(app.getHttpServer())
+      .get('/api/v2/reservations?status=PENDING&page=1&limit=100')
+      .auth(adminToken, { type: 'bearer' })
+      .expect(200);
+    expect(admin.body.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: unpaid.body.id, payment: null }),
+      expect.objectContaining({ id: legacyId, customer: null }),
+    ]));
+    expect(admin.body.data.every((row: { status: string }) => row.status === 'PENDING')).toBe(true);
+
+    const search = await request(app.getHttpServer())
+      .get(`/api/v2/reservations?search=${encodeURIComponent(email)}`)
+      .auth(adminToken, { type: 'bearer' })
+      .expect(200);
+    expect(search.body.data.some((row: { id: string }) => row.id === paidId)).toBe(true);
   });
 });

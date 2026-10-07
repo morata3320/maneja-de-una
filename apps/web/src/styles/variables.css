@@ -11,9 +11,29 @@
   --color-success: #246c50;
   --color-warning: #946015;
   --color-danger: #ad4146;
+  --color-input: #ffffff;
+  --color-overlay: #10243080;
   --font-primary:
     "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
   --font-display: var(--font-primary);
   --radius: 16px;
   --shadow: 0 8px 28px #172c3508;
+}
+
+:root[data-theme="dark"] {
+  --color-primary: #6f8cff;
+  --color-primary-hover: #8ba2ff;
+  --color-accent: #d8f568;
+  --color-background: #0d1519;
+  --color-surface: #172126;
+  --color-surface-secondary: #202d33;
+  --color-text: #edf4f5;
+  --color-text-secondary: #a8bac0;
+  --color-border: #34454c;
+  --color-input: #111b20;
+  --color-success: #75d5ab;
+  --color-warning: #f0be6c;
+  --color-danger: #ff8d96;
+  --color-overlay: #020609cc;
+  --shadow: 0 10px 32px #00000055;
 }

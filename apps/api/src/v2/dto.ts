@@ -111,6 +111,7 @@ export class ReservationDto {
   @IsUUID() vehicleId: string;
   @IsString() startDate: string;
   @IsString() endDate: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) pickupDepotId?: number;
   @IsOptional() @IsString() pickupLocation?: string;
   @IsOptional() @IsString() dropoffLocation?: string;
   @IsOptional() extras?: string[];

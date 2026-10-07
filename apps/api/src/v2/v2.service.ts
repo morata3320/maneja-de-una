@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
@@ -54,9 +55,80 @@ const pagination = (q: Record<string, unknown>) => {
   return { page, limit, offset: (page - 1) * limit };
 };
 const userView = (u: Row) => expose(u);
+const scalarText = (value: unknown): string | null =>
+  typeof value === 'string' || typeof value === 'number'
+    ? String(value)
+    : null;
+const reservationView = (row: Row) => {
+  const route = row.route && typeof row.route === 'object'
+    ? (row.route as Record<string, unknown>)
+    : {};
+  const storedPickup = route.pickup;
+  const fallbackPickup = typeof storedPickup === 'string' ? storedPickup : null;
+  const pickupDepot = row.depot_id == null
+    ? null
+    : {
+        id: Number(row.depot_id),
+        name: scalarText(row.depot_name) ?? fallbackPickup ?? '',
+        locationId: scalarText(row.depot_location_id),
+        location: scalarText(row.depot_location_name) ?? fallbackPickup,
+      };
+  const vehicle = row.related_vehicle_id == null
+    ? null
+    : {
+        id: scalarText(row.related_vehicle_id) ?? '',
+        brand: scalarText(row.vehicle_brand),
+        model: scalarText(row.vehicle_model),
+        name: [row.vehicle_brand, row.vehicle_model].filter(Boolean).join(' '),
+      };
+  const customer = row.customer_id == null
+    ? null
+    : {
+        id: scalarText(row.customer_id) ?? '',
+        firstName: scalarText(row.customer_first_name),
+        lastName: scalarText(row.customer_last_name),
+        email: scalarText(row.customer_email),
+      };
+  const payment = row.payment_reference == null && row.payment_status == null
+    ? null
+    : {
+        paymentReference: scalarText(row.payment_reference),
+        status: scalarText(row.payment_status),
+        amount: row.payment_amount == null ? null : Number(row.payment_amount),
+        brand: scalarText(row.payment_brand),
+        last4: scalarText(row.payment_last4),
+      };
+  return {
+    id: scalarText(row.id) ?? '',
+    status: scalarText(row.status) ?? '',
+    startDate: row.starts_at,
+    endDate: row.ends_at,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    total: Number(row.total_amount),
+    totalAmount: Number(row.total_amount),
+    currency: scalarText(row.currency) ?? '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    vehicleId: scalarText(row.vehicle_id),
+    customerId: scalarText(row.owner_id),
+    vehicle,
+    customer,
+    vehicleName: vehicle?.name ?? null,
+    customerName: customer
+      ? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
+      : null,
+    payment,
+    paymentStatus: payment?.status ?? null,
+    paymentReference: payment?.paymentReference ?? null,
+    pickupDepot,
+    pickupLocation: pickupDepot?.location ?? pickupDepot?.name ?? fallbackPickup,
+  };
+};
 
 @Injectable()
 export class V2Service {
+  private readonly logger = new Logger(V2Service.name);
   private readonly jwtKey = new TextEncoder().encode(
     requiredSecret('INTERNAL_JWT_SECRET'),
   );
@@ -415,8 +487,16 @@ export class V2Service {
       [id],
     );
     if (!row) throw new NotFoundException('Vehiculo no encontrado');
+    const pickupDepots = await this.db.query<Row[]>(
+      `SELECT d.id,d.name,d.location_id,l.name location,l.city,l.province
+       FROM depots d JOIN locations l ON l.id=d.location_id
+       WHERE d.supplier_id=$1 AND d.active=true AND l.active=true
+       ORDER BY CASE WHEN d.id=$2 THEN 0 ELSE 1 END,d.name`,
+      [row.supplier_id, row.depot_id],
+    );
     return {
       ...expose(row),
+      pickupDepots: pickupDepots.map(expose),
       _links: {
         self: { href: `/api/v2/vehicles/${id}` },
         update: { href: `/api/v2/vehicles/${id}`, method: 'PATCH' },
@@ -536,6 +616,17 @@ export class V2Service {
         [body.vehicleId],
       );
       if (!v) throw new NotFoundException('Vehiculo no encontrado');
+      const depotId = body.pickupDepotId ?? Number(v.depot_id);
+      const [depot] = await m.query<Row[]>(
+        `SELECT d.id,d.name,d.location_id,l.name location_name
+         FROM depots d JOIN locations l ON l.id=d.location_id
+         WHERE d.id=$1 AND d.supplier_id=$2 AND d.active=true AND l.active=true`,
+        [depotId, v.supplier_id],
+      );
+      if (!depot)
+        throw new BadRequestException(
+          'El lugar de recogida no está disponible para este vehículo',
+        );
       const overlap = await m.query<Row[]>(
         `SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
         [body.vehicleId, start, end],
@@ -552,7 +643,15 @@ export class V2Service {
           body.vehicleId,
           userId,
           `MDU-${randomBytes(4).toString('hex').toUpperCase()}`,
-          { pickup: body.pickupLocation, dropoff: body.dropoffLocation },
+          {
+            pickup: {
+              depotId: Number(depot.id),
+              name: depot.name,
+              locationId: depot.location_id,
+              locationName: depot.location_name,
+            },
+            dropoff: body.dropoffLocation ?? depot.location_name,
+          },
           start,
           end,
           v.price_per_day,
@@ -593,26 +692,53 @@ export class V2Service {
       );
     }
     const clause = where.length ? ' WHERE ' + where.join(' AND ') : '';
-    const from = ` FROM orders o JOIN users u ON u.id=o.owner_id JOIN vehicles v ON v.id=o.vehicle_id JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id LEFT JOIN payments p ON p.order_id=o.id${clause}`;
-    const [{ count }] = await this.db.query<Array<{ count: string }>>(
-      `SELECT count(*) count${from}`,
-      vals,
-    );
-    const rows = await this.db.query<Row[]>(
-      `SELECT o.*,p.status payment_status,p.payment_reference,concat(u.first_name,' ',u.last_name) customer,u.email,concat(b.name,' ',vm.name) vehicle${from} ORDER BY o.created_at DESC LIMIT $${vals.length + 1} OFFSET $${vals.length + 2}`,
-      [...vals, limit, offset],
-    );
-    return { data: rows.map(expose), total: Number(count), page, limit };
+    const depotJoin = `LEFT JOIN depots d ON d.id=CASE
+      WHEN jsonb_typeof(o.route->'pickup')='object'
+       AND COALESCE(o.route->'pickup'->>'depotId','') ~ '^[0-9]+$'
+      THEN (o.route->'pickup'->>'depotId')::integer ELSE v.depot_id END`;
+    const from = ` FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN vehicles v ON v.id=o.vehicle_id LEFT JOIN brands b ON b.id=v.brand_id LEFT JOIN vehicle_models vm ON vm.id=v.model_id LEFT JOIN payments p ON p.order_id=o.id ${depotJoin} LEFT JOIN locations dl ON dl.id=d.location_id${clause}`;
+    try {
+      const [{ count }] = await this.db.query<Array<{ count: string }>>(
+        `SELECT count(*) count${from}`,
+        vals,
+      );
+      const rows = await this.db.query<Row[]>(
+        `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,
+          u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
+          v.id related_vehicle_id,b.name vehicle_brand,vm.name vehicle_model,
+          d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
+          p.status payment_status,p.payment_reference,p.amount payment_amount,p.card_brand payment_brand,p.card_last4 payment_last4
+         ${from} ORDER BY o.created_at DESC LIMIT $${vals.length + 1} OFFSET $${vals.length + 2}`,
+        [...vals, limit, offset],
+      );
+      return { data: rows.map(reservationView), total: Number(count), page, limit };
+    } catch (error) {
+      this.logger.error(
+        `No fue posible listar reservas (all=${all}, page=${page}, filters=${where.length})`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
   }
   async reservation(user: PublicUser, id: string) {
     const [r] = await this.db.query<Row[]>(
-      'SELECT o.*,p.status payment_status,p.payment_reference FROM orders o LEFT JOIN payments p ON p.order_id=o.id WHERE o.id::text=$1',
+      `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,
+        u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
+        v.id related_vehicle_id,b.name vehicle_brand,vm.name vehicle_model,
+        d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
+        p.status payment_status,p.payment_reference,p.amount payment_amount,p.card_brand payment_brand,p.card_last4 payment_last4
+       FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN vehicles v ON v.id=o.vehicle_id
+       LEFT JOIN brands b ON b.id=v.brand_id LEFT JOIN vehicle_models vm ON vm.id=v.model_id
+       LEFT JOIN payments p ON p.order_id=o.id LEFT JOIN depots d ON d.id=CASE
+         WHEN jsonb_typeof(o.route->'pickup')='object' AND COALESCE(o.route->'pickup'->>'depotId','') ~ '^[0-9]+$'
+         THEN (o.route->'pickup'->>'depotId')::integer ELSE v.depot_id END
+       LEFT JOIN locations dl ON dl.id=d.location_id WHERE o.id::text=$1`,
       [id],
     );
     if (!r) throw new NotFoundException();
     if (user.role !== 'ADMIN' && r.owner_id !== user.id)
       throw new ForbiddenException();
-    return expose(r);
+    return reservationView(r);
   }
   async updateReservation(
     user: PublicUser,
