@@ -1,4 +1,4 @@
-import { cardBrand, isEcuadorianCedula, luhnValid } from './validation';
+import { cardBrand, isEcuadorianCedula } from './validation';
 
 describe('validaciones de marketplace V2', () => {
   it('acepta cedulas ecuatorianas con provincia, tercer digito y checksum validos', () => {
@@ -8,10 +8,8 @@ describe('validaciones de marketplace V2', () => {
     'rechaza cedula invalida %s',
     (value) => expect(isEcuadorianCedula(value)).toBe(false),
   );
-  it('aplica Luhn y detecta marcas sin conservar datos', () => {
-    const validVisa = '42'.repeat(8);
-    expect(luhnValid(validVisa)).toBe(true);
-    expect(cardBrand(validVisa)).toBe('VISA');
-    expect(luhnValid(validVisa.slice(0, -1) + '1')).toBe(false);
+  it('detecta marcas conocidas y usa UNKNOWN para tarjetas demo', () => {
+    expect(cardBrand('42'.repeat(8))).toBe('VISA');
+    expect(cardBrand('1'.repeat(15))).toBe('UNKNOWN');
   });
 });

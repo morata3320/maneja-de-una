@@ -25,7 +25,7 @@ La cédula ecuatoriana valida 10 dígitos, provincia 01–24, tercer dígito, re
 
 ## Pago simulado
 
-No procesa dinero ni consulta bancos. Valida Luhn, marca, expiración y CVV. Solo persiste referencia, reserva, usuario, importe calculado, moneda, estado, método, marca y últimos cuatro dígitos. Nunca almacena, registra ni responde PAN completo, CVV/CVC, PIN o expiración. El frontend tampoco guarda esos datos en almacenamiento web.
+No procesa dinero ni consulta bancos. El número solo se valida por formato y longitud; además se validan titular, expiración y CVV. Solo persiste referencia, reserva, usuario, importe calculado, moneda, estado, método, marca y últimos cuatro dígitos. Nunca almacena, registra ni responde PAN completo, CVV/CVC, PIN o expiración. El frontend tampoco guarda esos datos en almacenamiento web.
 
 ## Modelo de datos y persistencia
 
@@ -53,7 +53,7 @@ En `apps/api`: `npm run lint`, `npm run contract:check`, `npm run test:contract`
 
 ## CI/CD, Render y Azure PostgreSQL
 
-GitHub Actions ejecuta todas las comprobaciones en push y pull request a `main` con PostgreSQL 16 aislado, nunca Azure productivo. `render.yaml` define el backend y el sitio estático; `autoDeployTrigger: checksPass` espera CI verde. `npm run start:render` aplica migraciones compiladas y después inicia NestJS. Azure conserva la base y solo admite los rangos salientes del backend Render. Ver `docs/RENDER_DEPLOY.md` y `docs/DEFENSA.md`.
+GitHub Actions ejecuta todas las comprobaciones en push y pull request a `main` con PostgreSQL 16 aislado, nunca Azure productivo. `render.yaml` define el backend y el sitio estático; `autoDeployTrigger: checksPass` espera CI verde. `npm run start:render` aplica migraciones, crea de forma idempotente el ADMIN configurado mediante `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`, y después inicia NestJS. Nunca promueve un USER existente ni ejecuta el seed completo. Azure conserva la base y solo admite los rangos salientes del backend Render. Ver `docs/RENDER_DEPLOY.md` y `docs/DEFENSA.md`.
 
 ## URLs de producción esperadas
 

@@ -38,22 +38,9 @@ export function IsEcuadorianCedula(options?: ValidationOptions) {
         validate: (value: unknown) =>
           typeof value === 'string' && isEcuadorianCedula(value),
       defaultMessage: () =>
-          'Cedula ecuatoriana invalida',
+          'Cédula ecuatoriana inválida',
       },
     });
-}
-
-export function luhnValid(value: string): boolean {
-  if (!/^\d{13,19}$/.test(value)) return false;
-  let sum = 0,
-    double = false;
-  for (let i = value.length - 1; i >= 0; i--) {
-    let digit = Number(value[i]);
-    if (double && (digit *= 2) > 9) digit -= 9;
-    sum += digit;
-    double = !double;
-  }
-  return sum % 10 === 0;
 }
 
 export function cardBrand(

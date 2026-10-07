@@ -18,8 +18,8 @@ describe('Marketplace API V2', () => {
   let app: INestApplication, db: DataSource, token: string, adminToken: string;
   const email = 'v2.user@example.test',
     password = 'Password9',
-    validTestCard = '42'.repeat(8),
-    invalidTestCard = validTestCard.slice(0, -1) + '1';
+    arbitraryCardA = '1'.repeat(15),
+    arbitraryCardB = '12345678' + '90123456';
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       imports: [AppModule],
@@ -69,7 +69,10 @@ describe('Marketplace API V2', () => {
       .get('/api/v2/auth/me')
       .auth(token, { type: 'bearer' })
       .expect(200)
-      .expect(({ body }) => expect(body.role).toBe('USER'));
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ role: 'USER', firstName: 'Ana', lastName: 'Prueba', email });
+        expect(JSON.stringify(body)).not.toContain('password');
+      });
   });
 
   it('distingue 401 de 403 y permite dashboard solo ADMIN', async () => {
@@ -146,49 +149,40 @@ describe('Marketplace API V2', () => {
       .expect(409);
   });
 
-  it('valida pago y nunca expone ni almacena PAN/CVV', async () => {
+  it('aprueba tarjetas demo arbitrarias y nunca expone ni almacena PAN/CVV', async () => {
     const reservationId = (globalThis as unknown as { reservationId: string })
       .reservationId;
-    await request(app.getHttpServer())
-      .post('/api/v2/payments/simulate')
-      .auth(token, { type: 'bearer' })
-      .send({
-        reservationId,
-        cardholderName: 'Ana Prueba',
-          cardNumber: invalidTestCard,
-        expiryMonth: 12,
-        expiryYear: 2030,
-        cvv: '123',
-      })
-      .expect(400);
+    const base = { reservationId, cardholderName: 'Ana Prueba', expiryMonth: 12, expiryYear: 2030, cvv: '123' };
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, expiryYear: new Date().getFullYear() - 1, cardNumber: arbitraryCardA }).expect(400);
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cvv: '12', cardNumber: arbitraryCardA }).expect(400);
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cardNumber: '1'.repeat(12) }).expect(400);
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, cardNumber: '1'.repeat(14) + 'A' }).expect(400);
+
+    const otherEmail = 'v2.other@example.test';
+    await request(app.getHttpServer()).post('/api/v2/auth/register').send({ firstName: 'Otro', lastName: 'Usuario', email: otherEmail, password, cedula: cedula('092345678'), phone: '+593981234567' }).expect(201);
+    const otherLogin = await request(app.getHttpServer()).post('/api/v2/auth/login').send({ email: otherEmail, password }).expect(200);
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(otherLogin.body.accessToken, { type: 'bearer' }).send({ ...base, cardNumber: arbitraryCardA }).expect(403);
+
     const paid = await request(app.getHttpServer())
       .post('/api/v2/payments/simulate')
       .auth(token, { type: 'bearer' })
       .send({
-        reservationId,
-        cardholderName: 'Ana Prueba',
-          cardNumber: validTestCard,
-        expiryMonth: 12,
-        expiryYear: 2030,
-        cvv: '123',
+        ...base,
+        cardNumber: arbitraryCardA,
       })
       .expect(201);
     const json = JSON.stringify(paid.body);
     expect(json).not.toContain('cvv');
-      expect(json).not.toContain(validTestCard);
-    expect(paid.body.card).toEqual({ brand: 'VISA', last4: '4242' });
+    expect(json).not.toContain(arbitraryCardA);
+    expect(paid.body.card).toEqual({ brand: 'UNKNOWN', last4: '1111' });
     await request(app.getHttpServer())
       .post('/api/v2/payments/simulate')
       .auth(token, { type: 'bearer' })
-      .send({
-        reservationId,
-        cardholderName: 'Ana Prueba',
-          cardNumber: validTestCard,
-        expiryMonth: 12,
-        expiryYear: 2030,
-        cvv: '123',
-      })
+      .send({ ...base, cardNumber: arbitraryCardA })
       .expect(409);
+
+    const secondReservation = await request(app.getHttpServer()).post('/api/v2/reservations').auth(token, { type: 'bearer' }).send({ vehicleId: seedId(102), startDate: '2030-01-10T10:00:00Z', endDate: '2030-01-13T10:00:00Z' }).expect(201);
+    await request(app.getHttpServer()).post('/api/v2/payments/simulate').auth(token, { type: 'bearer' }).send({ ...base, reservationId: secondReservation.body.id, cardNumber: arbitraryCardB, cvv: '1234' }).expect(201).expect(({ body }) => expect(body.card).toEqual({ brand: 'UNKNOWN', last4: '3456' }));
     const columns = await db.query<Array<{ column_name: string }>>(
       `SELECT column_name FROM information_schema.columns WHERE table_name='payments'`,
     );

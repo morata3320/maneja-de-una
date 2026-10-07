@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, saveSession } from "../services/apiClient";
+import { useLocation, useNavigate } from "react-router-dom";
+import { api } from "../services/apiClient";
 import type { ApiUser } from "../models";
+import { useAuth } from "./AuthContext";
 export function useAuthController() {
-  const navigate = useNavigate(),
+  const navigate = useNavigate(), location = useLocation(), auth = useAuth(),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   async function submit(register: boolean, data: Record<string, string>) {
@@ -12,13 +13,9 @@ export function useAuthController() {
     try {
       if (register)
         await api<ApiUser>({ method: "POST", url: "/auth/register", data });
-      const session = await api<{ accessToken: string; user: ApiUser }>({
-        method: "POST",
-        url: "/auth/login",
-        data: { email: data.email, password: data.password },
-      });
-      saveSession(session.accessToken, session.user);
-      navigate(session.user.role === "ADMIN" ? "/admin" : "/vehiculos");
+      const user = await auth.login(data.email, data.password, data.remember === "on");
+      const pending = (location.state as { from?: string } | null)?.from;
+      navigate(user.role === "ADMIN" ? pending ?? "/admin" : "/vehiculos", { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No fue posible ingresar");
     } finally {

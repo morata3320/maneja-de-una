@@ -51,7 +51,7 @@ paths:
   /reservations/my: { get: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
   /reservations/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
   /reservations/{id}/cancel: { post: { tags: [Reservations], security: [bearerAuth: []], parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { description: OK } } } }
-  /payments/simulate: { post: { tags: [Payments], description: Valida formato y registra solo marca y ultimos cuatro digitos. Nunca PAN ni CVV., security: [bearerAuth: []], responses: { '201': { description: Approved }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: Reservation already paid } } } }
+  /payments/simulate: { post: { tags: [Payments], description: Pago simulado para demostración. El número solo se valida por formato y longitud; no existe procesamiento bancario real. Registra solo marca y últimos cuatro dígitos; nunca PAN ni CVV., security: [bearerAuth: []], responses: { '201': { description: Approved }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: Reservation already paid } } } }
   /payments: { get: { tags: [Payments], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
   /admin/dashboard: { get: { tags: [Admin], security: [bearerAuth: []], responses: { '200': { description: OK }, '403': { description: Forbidden } } } }
   /health: { get: { tags: [Health], responses: { '200': { description: OK } } } }

@@ -190,7 +190,7 @@ export function Checkout() {
                 required
               />
               <Input
-                label="Cedula"
+                label="Cédula"
                 inputMode="numeric"
                 pattern="\d{10}"
                 value={cedula}
@@ -198,7 +198,7 @@ export function Checkout() {
                 required
               />
               <Input
-                label="Telefono"
+                label="Teléfono"
                 type="tel"
                 pattern="\+?\d{7,15}"
                 value={phone}
@@ -213,7 +213,7 @@ export function Checkout() {
           {step === 3 && (
             <form className="stack" onSubmit={pay} autoComplete="off">
               <p>
-                El backend confirmo el total:{" "}
+                El backend confirmó el total:{" "}
                 <strong>
                   ${Number(reservation?.totalAmount).toFixed(2)}{" "}
                   {reservation?.currency}
@@ -227,7 +227,7 @@ export function Checkout() {
                 required
               />
               <Input
-                label="Numero de tarjeta"
+                label="Número de tarjeta"
                 autoComplete="cc-number"
                 inputMode="numeric"
                 value={cardNumber}
@@ -252,7 +252,7 @@ export function Checkout() {
                   required
                 />
                 <Input
-                  label="Ano"
+                  label="Año"
                   autoComplete="cc-exp-year"
                   inputMode="numeric"
                   value={expiryYear}

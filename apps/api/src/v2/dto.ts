@@ -29,13 +29,13 @@ export class RegisterV2Dto extends LoginV2Dto {
   @ApiProperty() @Trim() @Length(2, 50) @Matches(namePattern) lastName: string;
   @ApiProperty({ minLength: 10, maxLength: 10 })
   @Matches(/^\d{10}$/, {
-    message: 'Cedula debe contener exactamente 10 digitos',
+    message: 'Cédula debe contener exactamente 10 dígitos',
   })
-  @IsEcuadorianCedula({ message: 'Cedula ecuatoriana invalida' })
+  @IsEcuadorianCedula({ message: 'Cédula ecuatoriana inválida' })
   cedula: string;
   @ApiProperty() @Trim() @Matches(/^\+?\d{7,15}$/) phone: string;
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
-    message: 'La contrasena requiere mayuscula, minuscula y numero',
+    message: 'La contraseña requiere mayúscula, minúscula y número',
   })
   declare password: string;
 }

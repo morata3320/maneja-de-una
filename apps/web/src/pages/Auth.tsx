@@ -130,7 +130,7 @@ export function Auth({ register = false }: { register?: boolean }) {
                 />
               ) : (
                 <>
-                  <Checkbox label="Recordarme" />
+                  <Checkbox label="Recordarme" name="remember" />
                   <button
                     type="button"
                     className="text-link"

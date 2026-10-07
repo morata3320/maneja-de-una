@@ -23,7 +23,7 @@ import type {
   VehicleDto,
   VehiclePatchDto,
 } from './dto';
-import { cardBrand, luhnValid } from './validation';
+import { cardBrand } from './validation';
 
 type Row = Record<string, unknown>;
 const camel = (key: string) =>
@@ -50,7 +50,7 @@ const pagination = (q: Record<string, unknown>) => {
     limit < 1 ||
     limit > 100
   )
-    throw new BadRequestException('Paginacion invalida');
+    throw new BadRequestException('Paginación inválida');
   return { page, limit, offset: (page - 1) * limit };
 };
 const userView = (u: Row) => expose(u);
@@ -207,7 +207,7 @@ export class V2Service {
 
   async register(body: RegisterV2Dto) {
     if (Buffer.byteLength(body.password, 'utf8') > 72)
-      throw new BadRequestException('Contrasena excede 72 bytes');
+      throw new BadRequestException('Contraseña excede 72 bytes');
     const email = body.email.toLowerCase(),
       id = randomUUID();
     const rows = await this.db.query<Row[]>(
@@ -225,7 +225,7 @@ export class V2Service {
       ],
     );
     if (!rows.length)
-      throw new ConflictException('Email o cedula ya registrado');
+      throw new ConflictException('Email o cédula ya registrado');
     return userView(rows[0]);
   }
   async login(body: LoginV2Dto) {
@@ -239,7 +239,7 @@ export class V2Service {
     const valid = await compare(body.password, storedHash);
     if (!user || !valid || user.status !== 'ACTIVE' || !user.active)
       throw new (await import('@nestjs/common')).UnauthorizedException(
-        'Credenciales invalidas',
+        'Credenciales inválidas',
       );
     const accessToken = await new SignJWT({
       email: user.email,
@@ -526,7 +526,7 @@ export class V2Service {
       start >= end ||
       start < new Date()
     )
-      throw new BadRequestException('Fechas invalidas o pasadas');
+      throw new BadRequestException('Fechas inválidas o pasadas');
     return this.db.transaction(async (m) => {
       await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         body.vehicleId,
@@ -645,12 +645,7 @@ export class V2Service {
 
   async simulatePayment(user: PublicUser, body: PaymentDto) {
     const number = body.cardNumber.replace(/\s/g, '');
-    if (!luhnValid(number))
-      throw new BadRequestException('Numero de tarjeta invalido');
-    const brand = cardBrand(number),
-      digits = brand === 'AMEX' ? 4 : 3;
-    if (body.cvv.length !== digits)
-      throw new BadRequestException('CVV invalido');
+    const brand = cardBrand(number);
     const now = new Date(),
       year = body.expiryYear < 100 ? 2000 + body.expiryYear : body.expiryYear;
     if (
@@ -658,7 +653,7 @@ export class V2Service {
       (year === now.getFullYear() && body.expiryMonth < now.getMonth() + 1) ||
       year > now.getFullYear() + 20
     )
-      throw new BadRequestException('Fecha de expiracion invalida');
+      throw new BadRequestException('Fecha de expiración inválida');
     return this.db.transaction(async (m) => {
       const [order] = await m.query<Row[]>(
         'SELECT * FROM orders WHERE id=$1 FOR UPDATE',

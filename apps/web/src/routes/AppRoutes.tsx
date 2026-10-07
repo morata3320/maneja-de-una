@@ -12,6 +12,7 @@ import { MyReservations } from "../views/MyReservations";
 import { AdminApiCollection, AdminDashboardApi } from "../views/AdminApi";
 import { Checkout } from "../views/Checkout";
 import { EmptyState } from "../components/ui";
+import { Profile } from "../views/Profile";
 export function AppRoutes() {
   return (
     <Routes>
@@ -26,6 +27,7 @@ export function AppRoutes() {
         <Route path="checkout/:vehicleId" element={<Checkout />} />
         <Route element={<AccountLayout />}>
           <Route path="mis-reservas" element={<MyReservations />} />
+          <Route path="perfil" element={<Profile />} />
         </Route>
         <Route
           path="*"
@@ -43,13 +45,13 @@ export function AppRoutes() {
       </Route>
       <Route path="admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboardApi />} />
-        <Route path="vehiculos" element={<AdminApiCollection resource="vehicles" title="VehÃ­culos" />} />
+        <Route path="vehiculos" element={<AdminApiCollection resource="vehicles" title="Vehículos" />} />
         <Route path="reservas" element={<AdminApiCollection resource="reservations" title="Reservas" action="cancel" />} />
         <Route path="usuarios" element={<AdminApiCollection resource="users" title="Clientes" />} />
         <Route path="clientes" element={<AdminApiCollection resource="users" title="Clientes" />} />
         <Route path="marcas" element={<AdminApiCollection resource="brands" title="Marcas" create />} />
         <Route path="modelos" element={<AdminApiCollection resource="vehicle-models" title="Modelos" />} />
-        <Route path="categorias" element={<AdminApiCollection resource="categories" title="CategorÃ­as" create />} />
+        <Route path="categorias" element={<AdminApiCollection resource="categories" title="Categorías" create />} />
         <Route path="ubicaciones" element={<AdminApiCollection resource="locations" title="Ubicaciones" />} />
         <Route path="proveedores" element={<AdminApiCollection resource="suppliers" title="Proveedores" create />} />
         <Route path="agencias" element={<AdminApiCollection resource="depots" title="Agencias" />} />

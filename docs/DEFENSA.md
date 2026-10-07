@@ -6,7 +6,7 @@ REST mantiene contratos simples sobre HTTP: GET consulta, POST crea o ejecuta ac
 
 PostgreSQL 16 conserva integridad y TypeORM aplica migraciones con `synchronize=false`. JWT autentica; 401 significa identidad ausente o inválida y 403 identidad válida sin permiso. `USER` compra y `ADMIN` gestiona. bcrypt protege contraseñas. CORS restringe el frontend productivo, Helmet y rate limiting reducen superficie OWASP. La cédula ecuatoriana se valida localmente por formato, provincia, tercer dígito y Mod10.
 
-El pago es una simulación: valida Luhn, expiración y CVV, pero jamás persiste PAN ni CVV; solo marca, últimos cuatro y referencia. Swagger/OpenAPI permite demostrar el contrato. GitHub Actions ejecuta lint, compilación y tests con PostgreSQL aislado; Render aloja web/API y se conecta a Azure mediante firewall restringido.
+El pago es una simulación: valida formato, longitud, expiración y CVV, pero jamás persiste PAN ni CVV; solo marca, últimos cuatro y referencia. No aplica Luhn ni procesamiento bancario. Swagger/OpenAPI permite demostrar el contrato. GitHub Actions ejecuta lint, compilación y tests con PostgreSQL aislado; Render aloja web/API y se conecta a Azure mediante firewall restringido.
 
 ## Demo en menos de 5 minutos
 

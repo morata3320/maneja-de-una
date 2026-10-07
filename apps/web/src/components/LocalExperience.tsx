@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Icon } from "./ui/Icon";
 import { api } from "../services/apiClient";
+import { useAuth } from "../controllers/AuthContext";
 interface Experience {
   favorites: string[];
   comparison: string[];
@@ -11,17 +12,18 @@ interface Experience {
 }
 const Context = createContext<Experience | null>(null);
 export function LocalExperience({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [comparison, setComparison] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => {
-    if (!localStorage.getItem("mdu_access_token")) return;
+    if (!user) { setFavorites([]); return; }
     api<Array<{ id: string }>>({ url: "/favorites" })
       .then((rows) => setFavorites(rows.map((row) => row.id)))
       .catch(() => undefined);
-  }, []);
+  }, [user]);
   function notify(text: string) {
     setMessage(text);
     clearTimeout(timer.current);
@@ -29,7 +31,7 @@ export function LocalExperience({ children }: { children: ReactNode }) {
   }
   function toggleFavorite(id: string) {
     const active = favorites.includes(id);
-    if (!localStorage.getItem("mdu_access_token")) {
+    if (!user) {
       notify("Inicia sesión para guardar favoritos");
       return;
     }

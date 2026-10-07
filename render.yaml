@@ -38,6 +38,10 @@ services:
         value: local
       - key: AUTOS_LOCAL_JWT_SECRET
         sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
       - key: WEBHOOK_WORKER_ENABLED
         value: "false"
       - key: WEBHOOK_ALLOW_LOOPBACK

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button, Drawer, Modal } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 import { useExperience } from "../components/LocalExperience";
+import { useAuth } from "../controllers/AuthContext";
 export function BrandLogo() {
   return (
     <Link className="brand" to="/" aria-label="Maneja de Una, inicio">
@@ -20,6 +21,7 @@ export function PublicLayout() {
   const [info, setInfo] = useState("");
   const { pathname, hash } = useLocation();
   const { comparison } = useExperience();
+  const { user, logout } = useAuth();
   useEffect(() => {
     setMenu(false);
     if (hash)
@@ -51,9 +53,7 @@ export function PublicLayout() {
             >
               <Icon name="heart" />
             </Link>
-            <Link className="login-link" to="/login">
-              Iniciar sesión
-            </Link>
+            {user ? <details className="auth-menu"><summary>{user.firstName || user.email}</summary><div className="auth-menu-items"><Link to="/perfil">Mi perfil</Link><Link to="/mis-reservas">Mis reservas</Link><Link to="/favoritos">Favoritos</Link>{user.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}<button type="button" onClick={logout}>Cerrar sesión</button></div></details> : <Link className="login-link" to="/login">Iniciar sesión</Link>}
             <Link className="btn btn-primary btn-sm nav-cta" to="/vehiculos">
               Alquila un auto <Icon name="arrow" size={16} />
             </Link>
@@ -76,8 +76,7 @@ export function PublicLayout() {
         <nav className="drawer-nav">
           {links}
           <Link to="/favoritos">Mis favoritos</Link>
-          <Link to="/login">Iniciar sesión</Link>
-          <Link to="/mis-reservas">Mis reservas</Link>
+          {user ? <><Link to="/perfil">Mi perfil</Link><Link to="/mis-reservas">Mis reservas</Link>{user.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}<button type="button" onClick={logout}>Cerrar sesión</button></> : <Link to="/login">Iniciar sesión</Link>}
         </nav>
       </Drawer>
       <main id="contenido">
@@ -118,7 +117,7 @@ export function PublicLayout() {
         <div className="container footer-bottom">
           <span>© {new Date().getFullYear()} Maneja de Una</span>
           <span>Tu camino empieza aquí.</span>
-          <Link to="/admin">Administración</Link>
+          {user?.role === "ADMIN" && <Link to="/admin">Panel de administración</Link>}
         </div>
       </footer>
       <Modal open={!!info} onClose={() => setInfo("")} title={info}>

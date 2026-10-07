@@ -57,7 +57,7 @@ export class AuthV2Controller {
   @Get('me') @UseGuards(InternalGuard) @ApiBearerAuth() me(
     @Req() r: InternalRequest,
   ) {
-    return { ...r.user, role: r.user.role === 'CUSTOMER' ? 'USER' : r.user.role };
+    return this.s.user(r.user.id);
   }
 }
 
@@ -290,7 +290,9 @@ export class ReservationsV2Controller {
 @Controller('api/v2/payments')
 export class PaymentsV2Controller {
   constructor(private readonly s: V2Service) {}
-  @Post('simulate') simulate(@Req() r: InternalRequest, @Body() b: PaymentDto) {
+  @Post('simulate')
+  @ApiOperation({ summary: 'Pago simulado para demostración. El número solo se valida por formato y longitud; no existe procesamiento bancario real.' })
+  simulate(@Req() r: InternalRequest, @Body() b: PaymentDto) {
     return this.s.simulatePayment(r.user, b);
   }
   @Get() @UseGuards(AdminGuard) list() {
