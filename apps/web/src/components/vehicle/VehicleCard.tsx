@@ -72,6 +72,11 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
           {vehicle.location}
           <Rating value={vehicle.rating} />
         </div>
+        <p className="vehicle-stock">
+          {vehicle.stockAvailable > 0
+            ? `${vehicle.stockAvailable} unidades disponibles`
+            : "Sin unidades disponibles"}
+        </p>
         <div className="vehicle-specs">
           <span>
             <Icon name="gear" size={16} />

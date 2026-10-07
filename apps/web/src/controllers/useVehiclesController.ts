@@ -66,6 +66,9 @@ export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   featured: v.status === "AVAILABLE",
   description: v.description,
   status: v.status,
+  quantity: v.quantity,
+  stockTotal: v.stockTotal,
+  stockAvailable: v.stockAvailable,
   pickupDepots: v.pickupDepots ?? [],
 });
 export function useVehiclesController(query = "") {
@@ -93,7 +96,7 @@ export function useVehiclesController(query = "") {
   }, [query]);
   return { vehicles, total, loading, error };
 }
-export function useVehicleController(id?: string) {
+export function useVehicleController(id?: string, query = "") {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
@@ -103,7 +106,10 @@ export function useVehicleController(id?: string) {
       return;
     }
     const controller = new AbortController();
-    api<ApiVehicle>({ url: `/vehicles/${id}`, signal: controller.signal })
+    api<ApiVehicle>({
+      url: `/vehicles/${id}${query}`,
+      signal: controller.signal,
+    })
       .then((value) => setVehicle(mapVehicle(value)))
       .catch((reason) => {
         if (!controller.signal.aborted)
@@ -113,6 +119,6 @@ export function useVehicleController(id?: string) {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [id]);
+  }, [id, query]);
   return { vehicle, loading, error };
 }

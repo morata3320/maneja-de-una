@@ -439,4 +439,125 @@ describe('Marketplace API V2', () => {
       search.body.data.some((row: { id: string }) => row.id === paidId),
     ).toBe(true);
   });
+
+  it('administra stock fisico y descuenta disponibilidad sin sobre-reservar', async () => {
+    const vehicleBody = {
+      brandId: seedId(1),
+      modelId: seedId(14),
+      categoryId: seedId(22),
+      locationId: seedId(31),
+      supplierId: 1,
+      depotId: 1,
+      year: 2025,
+      color: 'Blanco',
+      licensePlate: 'STKTEST-001',
+      transmission: 'AUTOMATIC',
+      fuelType: 'HYBRID',
+      seats: 5,
+      doors: 4,
+      bagCapacity: 2,
+      pricePerDay: 68,
+      mileage: 4200,
+      description: 'RAV4 para prueba de stock',
+      status: 'AVAILABLE',
+      active: true,
+      quantity: 3,
+    };
+    const created = await request(app.getHttpServer())
+      .post('/api/v2/vehicles')
+      .auth(adminToken, { type: 'bearer' })
+      .send(vehicleBody)
+      .expect(201);
+    expect(created.body).toMatchObject({
+      model: 'RAV4',
+      quantity: 3,
+      stockTotal: 3,
+      stockAvailable: 3,
+    });
+
+    await request(app.getHttpServer())
+      .put(`/api/v2/vehicles/${created.body.id}`)
+      .auth(adminToken, { type: 'bearer' })
+      .send({ ...vehicleBody, quantity: 4 })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ quantity: 4, stockTotal: 4 });
+      });
+    await request(app.getHttpServer())
+      .patch(`/api/v2/vehicles/${created.body.id}`)
+      .auth(adminToken, { type: 'bearer' })
+      .send({ quantity: 2 })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ quantity: 2, stockTotal: 2 });
+      });
+
+    const units = await request(app.getHttpServer())
+      .get('/api/v2/vehicles?model=RAV4&limit=100')
+      .expect(200);
+    expect(units.body.data).toHaveLength(2);
+    const period = {
+      startDate: '2040-01-10T10:00:00Z',
+      endDate: '2040-01-12T10:00:00Z',
+      pickupDepotId: 1,
+    };
+    const concurrent = await Promise.all(
+      [0, 1].map(() =>
+        request(app.getHttpServer())
+          .post('/api/v2/reservations')
+          .auth(token, { type: 'bearer' })
+          .send({ ...period, vehicleId: units.body.data[0].id }),
+      ),
+    );
+    expect(concurrent.map(({ status }) => status).sort((a, b) => a - b)).toEqual([
+      201, 409,
+    ]);
+    const firstReservation = concurrent.find(({ status }) => status === 201)!;
+    const secondReservation = await request(app.getHttpServer())
+      .post('/api/v2/reservations')
+      .auth(token, { type: 'bearer' })
+      .send({ ...period, vehicleId: units.body.data[1].id })
+      .expect(201);
+
+    const availability = await request(app.getHttpServer())
+      .get(
+        `/api/v2/vehicles/${created.body.id}?startDate=${encodeURIComponent(period.startDate)}&endDate=${encodeURIComponent(period.endDate)}`,
+      )
+      .expect(200);
+    expect(availability.body).toMatchObject({
+      stockTotal: 2,
+      stockAvailable: 0,
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/v2/vehicles/${created.body.id}`)
+      .auth(adminToken, { type: 'bearer' })
+      .send({ quantity: 1 })
+      .expect(409);
+
+    for (const reservationId of [
+      firstReservation.body.id,
+      secondReservation.body.id,
+    ])
+      await request(app.getHttpServer())
+        .post(`/api/v2/reservations/${reservationId}/cancel`)
+        .auth(token, { type: 'bearer' })
+        .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/v2/vehicles/${created.body.id}`)
+      .auth(adminToken, { type: 'bearer' })
+      .send({ quantity: 1 })
+      .expect(200);
+
+    const swagger = await request(app.getHttpServer())
+      .get('/swagger-json')
+      .expect(200);
+    expect(swagger.body.components.schemas.VehicleDto.properties.quantity)
+      .toMatchObject({ minimum: 0, maximum: 1000 });
+    expect(swagger.body.components.schemas.VehicleStockDto.properties)
+      .toEqual(expect.objectContaining({
+        quantity: expect.any(Object),
+        stockTotal: expect.any(Object),
+        stockAvailable: expect.any(Object),
+      }));
+  });
 });

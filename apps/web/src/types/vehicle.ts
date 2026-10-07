@@ -18,5 +18,8 @@ export interface Vehicle {
   featured: boolean;
   description: string;
   status: string;
+  quantity: number;
+  stockTotal: number;
+  stockAvailable: number;
   pickupDepots: import("../models").PickupDepot[];
 }

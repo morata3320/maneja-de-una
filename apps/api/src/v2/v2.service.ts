@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 import { compare, hash } from 'bcrypt';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { SignJWT } from 'jose';
@@ -54,6 +54,26 @@ const pagination = (q: Record<string, unknown>) => {
     throw new BadRequestException('Paginación inválida');
   return { page, limit, offset: (page - 1) * limit };
 };
+const availabilityPeriod = (query: Record<string, unknown>) => {
+  if (query.startDate === undefined && query.endDate === undefined) return null;
+  if (typeof query.startDate !== 'string' || typeof query.endDate !== 'string')
+    throw new BadRequestException('startDate y endDate son requeridos juntos');
+  const start = new Date(query.startDate),
+    end = new Date(query.endDate);
+  if (
+    !Number.isFinite(start.valueOf()) ||
+    !Number.isFinite(end.valueOf()) ||
+    start >= end
+  )
+    throw new BadRequestException('Periodo de disponibilidad invalido');
+  return { start, end };
+};
+const stockView = (row: Row) => ({
+  ...expose(row),
+  quantity: Number(row.stock_total),
+  stockTotal: Number(row.stock_total),
+  stockAvailable: Number(row.stock_available),
+});
 const userView = (u: Row) => expose(u);
 const scalarText = (value: unknown): string | null =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : null;
@@ -436,6 +456,11 @@ export class V2Service {
     const { page, limit, offset } = pagination(query),
       values: unknown[] = [],
       where = ['v.active=true'];
+    const period = availabilityPeriod(query);
+    if (period) {
+      values.push(period.start, period.end);
+      where.push('$1::timestamptz IS NOT NULL', '$2::timestamptz IS NOT NULL');
+    }
     const exact: Record<string, string> = {
       brand: 'b.name',
       model: 'vm.name',
@@ -471,17 +496,25 @@ export class V2Service {
         : query.sort === 'price_desc'
           ? 'v.price_per_day DESC'
           : 'v.created_at DESC';
+    const availableStock = period
+      ? `sv.status IN ('AVAILABLE','RESERVED')
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$2 AND o.ends_at>$1)
+         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$2 AND h.ends_at>$1)`
+      : "sv.status='AVAILABLE'";
+    const stockColumns = `,
+      (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
+      (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active AND ${availableStock}) stock_available`;
     const from = ` FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id WHERE ${where.join(' AND ')}`;
     const [{ count }] = await this.db.query<Array<{ count: string }>>(
       `SELECT count(*) count${from}`,
       values,
     );
     const rows = await this.db.query<Row[]>(
-      `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier${from} ORDER BY ${order} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier${stockColumns}${from} ORDER BY ${order} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       [...values, limit, offset],
     );
     return {
-      data: rows.map(expose),
+      data: rows.map(stockView),
       total: Number(count),
       page,
       limit,
@@ -490,10 +523,21 @@ export class V2Service {
       },
     };
   }
-  async vehicle(id: string) {
+  async vehicle(id: string, query: Record<string, unknown> = {}) {
+    const period = availabilityPeriod(query),
+      values: unknown[] = [id];
+    if (period) values.push(period.start, period.end);
+    const availableStock = period
+      ? `sv.status IN ('AVAILABLE','RESERVED')
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$3 AND o.ends_at>$2)
+         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$3 AND h.ends_at>$2)`
+      : "sv.status='AVAILABLE'";
     const [row] = await this.db.query<Row[]>(
-      `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id WHERE v.id::text=$1`,
-      [id],
+      `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier,
+       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
+       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active AND ${availableStock}) stock_available
+       FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id WHERE v.id::text=$1`,
+      values,
     );
     if (!row) throw new NotFoundException('Vehiculo no encontrado');
     const pickupDepots = await this.db.query<Row[]>(
@@ -504,7 +548,7 @@ export class V2Service {
       [row.supplier_id, row.depot_id],
     );
     return {
-      ...expose(row),
+      ...stockView(row),
       pickupDepots: pickupDepots.map(expose),
       _links: {
         self: { href: `/api/v2/vehicles/${id}` },
@@ -513,6 +557,99 @@ export class V2Service {
         reserve: { href: '/api/v2/reservations', method: 'POST' },
       },
     };
+  }
+  private async adjustVehicleStock(
+    manager: EntityManager,
+    template: Row,
+    quantity: number,
+  ) {
+    const modelId = String(template.model_id),
+      templateId = String(template.id);
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `vehicle-stock:${modelId}`,
+    ]);
+    const [{ count }] = await manager.query<Array<{ count: string }>>(
+      'SELECT count(*) count FROM vehicles WHERE model_id=$1 AND active',
+      [modelId],
+    );
+    const current = Number(count);
+    if (current === quantity) return;
+
+    if (current > quantity) {
+      const remove = current - quantity;
+      const candidates = await manager.query<Array<{ id: string }>>(
+        `SELECT v.id FROM vehicles v
+         WHERE v.model_id=$1 AND v.active
+           AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.status IN ('PENDING','CONFIRMED') AND o.ends_at>now())
+           AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=v.id AND NOT h.consumed AND h.expires_at>now())
+         ORDER BY CASE WHEN v.id=$3 THEN 1 ELSE 0 END,v.created_at DESC
+         FOR UPDATE SKIP LOCKED LIMIT $2`,
+        [modelId, remove, templateId],
+      );
+      if (candidates.length !== remove)
+        throw new ConflictException(
+          'No se puede reducir el stock: hay unidades con reservas activas.',
+        );
+      await manager.query(
+        "UPDATE vehicles SET active=false,status='INACTIVE',updated_at=now() WHERE id=ANY($1::uuid[])",
+        [candidates.map(({ id }) => id)],
+      );
+      return;
+    }
+
+    let add = quantity - current;
+    const inactive = await manager.query<Array<{ id: string }>>(
+      `SELECT v.id FROM vehicles v
+       WHERE v.model_id=$1 AND NOT v.active
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.status IN ('PENDING','CONFIRMED') AND o.ends_at>now())
+         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=v.id AND NOT h.consumed AND h.expires_at>now())
+       ORDER BY v.updated_at DESC FOR UPDATE SKIP LOCKED LIMIT $2`,
+      [modelId, add],
+    );
+    if (inactive.length) {
+      await manager.query(
+        "UPDATE vehicles SET active=true,status='AVAILABLE',updated_at=now() WHERE id=ANY($1::uuid[])",
+        [inactive.map(({ id }) => id)],
+      );
+      add -= inactive.length;
+    }
+    for (let index = 0; index < add; index++) {
+      let licensePlate = '';
+      do {
+        licensePlate = `STK-${randomBytes(4).toString('hex').toUpperCase()}`;
+      } while (
+        (
+          await manager.query<Row[]>(
+            'SELECT id FROM vehicles WHERE license_plate=$1',
+            [licensePlate],
+          )
+        ).length
+      );
+      await manager.query(
+        `INSERT INTO vehicles(id,brand_id,model_id,category_id,location_id,supplier_id,depot_id,year,color,license_plate,transmission,fuel_type,seats,doors,bag_capacity,price_per_day,mileage,description,status,active)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'AVAILABLE',true)`,
+        [
+          randomUUID(),
+          template.brand_id,
+          template.model_id,
+          template.category_id,
+          template.location_id,
+          template.supplier_id,
+          template.depot_id,
+          template.year,
+          template.color,
+          licensePlate,
+          template.transmission,
+          template.fuel_type,
+          template.seats,
+          template.doors,
+          template.bag_capacity,
+          template.price_per_day,
+          template.mileage,
+          template.description,
+        ],
+      );
+    }
   }
   async writeVehicle(body: VehicleDto | VehiclePatchDto, id?: string) {
     const map: Record<string, string> = {
@@ -536,24 +673,67 @@ export class V2Service {
       status: 'status',
       active: 'active',
     };
-    const entries = Object.entries(body).filter(([, v]) => v !== undefined),
+    const quantity = body.quantity,
+      input = Object.fromEntries(Object.entries(body));
+    delete input.quantity;
+    if (!id && quantity === 0) {
+      input.active = false;
+      input.status = 'INACTIVE';
+    }
+    const entries = Object.entries(input).filter(([, v]) => v !== undefined),
       values = entries.map(([, v]) => v),
       cols = entries.map(([k]) => map[k]);
     try {
-      if (id) {
-        const [row] = await this.db.query<Row[]>(
-          `UPDATE vehicles SET ${cols.map((c, i) => `${c}=$${i + 1}`).join(',')},updated_at=now() WHERE id::text=$${values.length + 1} RETURNING *`,
-          [...values, id],
-        );
-        if (!row) throw new NotFoundException();
-        return this.vehicle(id);
-      }
-      const vehicleId = randomUUID();
-      const rows = await this.db.query<Row[]>(
-        `INSERT INTO vehicles(id,${cols.join(',')}) VALUES($1,${values.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
-        [vehicleId, ...values],
-      );
-      return this.vehicle(String(rows[0].id));
+      const vehicleId = await this.db.transaction(async (manager) => {
+        let row: Row;
+        if (id) {
+          if (quantity !== undefined) {
+            const [current] = await manager.query<Array<{ model_id: string }>>(
+              'SELECT model_id FROM vehicles WHERE id::text=$1',
+              [id],
+            );
+            if (!current) throw new NotFoundException();
+            const modelLocks = [
+              current.model_id,
+              typeof input.modelId === 'string' ? input.modelId : null,
+            ]
+              .filter((value): value is string => value !== null)
+              .filter((value, index, all) => all.indexOf(value) === index)
+              .sort((a, b) => a.localeCompare(b));
+            for (const modelId of modelLocks)
+              await manager.query(
+                'SELECT pg_advisory_xact_lock(hashtext($1))',
+                [`vehicle-stock:${modelId}`],
+              );
+          }
+          const [existing] = await manager.query<Row[]>(
+            'SELECT * FROM vehicles WHERE id::text=$1 FOR UPDATE',
+            [id],
+          );
+          if (!existing) throw new NotFoundException();
+          if (entries.length) {
+            await manager.query(
+              `UPDATE vehicles SET ${cols.map((c, i) => `${c}=$${i + 1}`).join(',')},updated_at=now() WHERE id::text=$${values.length + 1}`,
+              [...values, id],
+            );
+            [row] = await manager.query<Row[]>(
+              'SELECT * FROM vehicles WHERE id::text=$1 FOR UPDATE',
+              [id],
+            );
+          } else row = existing;
+        } else {
+          const newId = randomUUID();
+          const [created] = await manager.query<Row[]>(
+            `INSERT INTO vehicles(id,${cols.join(',')}) VALUES($1,${values.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
+            [newId, ...values],
+          );
+          row = created;
+        }
+        if (quantity !== undefined)
+          await this.adjustVehicleStock(manager, row, quantity);
+        return String(row.id);
+      });
+      return this.vehicle(vehicleId);
     } catch (e) {
       if ((e as { code?: string }).code?.startsWith('23'))
         throw new ConflictException('Conflicto de integridad');
@@ -621,7 +801,7 @@ export class V2Service {
         body.vehicleId,
       ]);
       const [v] = await m.query<Row[]>(
-        "SELECT * FROM vehicles WHERE id=$1 AND active AND status<>'INACTIVE'",
+        "SELECT * FROM vehicles WHERE id=$1 AND active AND status IN ('AVAILABLE','RESERVED') FOR UPDATE",
         [body.vehicleId],
       );
       if (!v) throw new NotFoundException('Vehiculo no encontrado');
@@ -637,7 +817,8 @@ export class V2Service {
           'El lugar de recogida no está disponible para este vehículo',
         );
       const overlap = await m.query<Row[]>(
-        `SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
+        `SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2
+         UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
         [body.vehicleId, start, end],
       );
       if (overlap.length)

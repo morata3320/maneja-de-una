@@ -29,6 +29,9 @@ export interface ApiVehicle {
   pricePerDay: number;
   description: string;
   status: string;
+  quantity: number;
+  stockTotal: number;
+  stockAvailable: number;
   pickupDepots?: PickupDepot[];
 }
 export interface PickupDepot {

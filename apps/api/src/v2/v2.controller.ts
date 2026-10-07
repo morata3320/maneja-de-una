@@ -15,11 +15,15 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiExtraModels,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import {
   AdminGuard,
@@ -39,6 +43,7 @@ import {
   UserUpdateDto,
   VehicleDto,
   VehiclePatchDto,
+  VehicleStockDto,
 } from './dto';
 import { V2Service } from './v2.service';
 
@@ -108,6 +113,7 @@ export class UsersV2Controller {
 }
 
 @ApiTags('Vehicles')
+@ApiExtraModels(VehicleStockDto)
 @Controller('api/v2/vehicles')
 export class VehiclesV2Controller {
   constructor(private readonly s: V2Service) {}
@@ -121,6 +127,8 @@ export class VehiclesV2Controller {
   @ApiQuery({ name: 'fuelType', required: false })
   @ApiQuery({ name: 'location', required: false })
   @ApiQuery({ name: 'supplier', required: false })
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
   @ApiQuery({ name: 'minPrice', required: false, type: Number })
   @ApiQuery({ name: 'maxPrice', required: false, type: Number })
   @ApiQuery({
@@ -128,24 +136,50 @@ export class VehiclesV2Controller {
     required: false,
     enum: ['price_asc', 'price_desc'],
   })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: getSchemaPath(VehicleStockDto) },
+        },
+      },
+    },
+  })
   list(@Query() q: Record<string, unknown>) {
     return this.s.vehicles(q);
   }
-  @Get(':id') get(@Param('id') id: string) {
-    return this.s.vehicle(id);
+  @Get(':id')
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
+  @ApiOkResponse({ type: VehicleStockDto })
+  get(@Param('id') id: string, @Query() q: Record<string, unknown>) {
+    return this.s.vehicle(id, q);
   }
-  @Post() @UseGuards(InternalGuard, AdminGuard) @ApiBearerAuth() create(
+  @Post()
+  @UseGuards(InternalGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiCreatedResponse({ type: VehicleStockDto })
+  create(
     @Body() b: VehicleDto,
   ) {
     return this.s.writeVehicle(b);
   }
-  @Put(':id') @UseGuards(InternalGuard, AdminGuard) @ApiBearerAuth() put(
+  @Put(':id')
+  @UseGuards(InternalGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: VehicleStockDto })
+  put(
     @Param('id') id: string,
     @Body() b: VehicleDto,
   ) {
     return this.s.writeVehicle(b, id);
   }
-  @Patch(':id') @UseGuards(InternalGuard, AdminGuard) @ApiBearerAuth() patch(
+  @Patch(':id')
+  @UseGuards(InternalGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOkResponse({ type: VehicleStockDto })
+  patch(
     @Param('id') id: string,
     @Body() b: VehiclePatchDto,
   ) {

@@ -26,6 +26,7 @@ type Field = {
   relation?: string;
   min?: number;
   max?: number;
+  integer?: boolean;
 };
 const yesNo: Option[] = [
   { value: "true", label: "Activo" },
@@ -166,6 +167,8 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
       "supplier",
       "licensePlate",
       "pricePerDay",
+      "stockTotal",
+      "stockAvailable",
       "status",
     ],
     fields: [
@@ -247,6 +250,8 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         label: "Maletas",
         type: "number",
         min: 0,
+        max: 1000,
+        integer: true,
         required: true,
       },
       {
@@ -259,6 +264,13 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
       {
         key: "mileage",
         label: "Kilometraje",
+        type: "number",
+        min: 0,
+        required: true,
+      },
+      {
+        key: "quantity",
+        label: "Cantidad / Stock",
         type: "number",
         min: 0,
         required: true,
@@ -291,6 +303,8 @@ const labels: Record<string, string> = {
   locationId: "Ubicación",
   depotId: "Agencia",
   pricePerDay: "Precio/día",
+  stockTotal: "Stock total",
+  stockAvailable: "Disponibles",
   licensePlate: "Placa",
   paymentReference: "Referencia",
   reservationId: "Reserva",
@@ -537,7 +551,7 @@ function ResourceForm({
             required={field.required || (field.key === "password" && !row)}
             min={field.min}
             max={field.max}
-            step={field.type === "number" ? "any" : undefined}
+            step={field.type === "number" ? (field.integer ? 1 : "any") : undefined}
           />
         ),
       )}

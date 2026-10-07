@@ -105,8 +105,25 @@ export class VehicleDto {
   @IsEnum(['AVAILABLE', 'RESERVED', 'RENTED', 'MAINTENANCE', 'INACTIVE'])
   status: string;
   @IsOptional() active?: boolean;
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 1000,
+    description:
+      'Cantidad total de unidades físicas activas para el mismo modelo.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  quantity?: number;
 }
 export class VehiclePatchDto extends PartialType(VehicleDto) {}
+export class VehicleStockDto {
+  @ApiProperty({ minimum: 0 }) quantity: number;
+  @ApiProperty({ minimum: 0 }) stockTotal: number;
+  @ApiProperty({ minimum: 0 }) stockAvailable: number;
+}
 export class ReservationDto {
   @IsUUID() vehicleId: string;
   @IsString() startDate: string;

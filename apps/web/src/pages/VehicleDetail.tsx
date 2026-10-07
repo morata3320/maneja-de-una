@@ -21,11 +21,15 @@ import { useExperience } from "../components/LocalExperience";
 export function VehicleDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vehicle, loading } = useVehicleController(id);
-  const { vehicles } = useVehiclesController("?limit=3");
-  const [angle, setAngle] = useState(0);
   const [start, setStart] = useState("2026-10-12");
   const [end, setEnd] = useState("2026-10-15");
+  const availabilityQuery =
+    start && end
+      ? `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
+      : "";
+  const { vehicle, loading } = useVehicleController(id, availabilityQuery);
+  const { vehicles } = useVehiclesController("?limit=3");
+  const [angle, setAngle] = useState(0);
   const [open, setOpen] = useState(false);
   const [pickupDepotId, setPickupDepotId] = useState("");
   const { favorites, comparison, toggleFavorite, toggleCompare } =
@@ -53,6 +57,7 @@ export function VehicleDetail() {
     );
   const days = Math.ceil((Date.parse(end) - Date.parse(start)) / 86400000);
   const valid = Number.isFinite(days) && days > 0;
+  const available = vehicle.stockAvailable > 0;
   const specs = [
     ["gear", "Transmisión", vehicle.transmission],
     ["fuel", "Combustible", vehicle.fuel],
@@ -172,7 +177,7 @@ export function VehicleDetail() {
             className="booking-card card"
             onSubmit={(e) => {
               e.preventDefault();
-              if (valid && pickupDepotId)
+              if (valid && available && pickupDepotId)
                 navigate(
                   `/checkout/${id}?start=${start}&end=${end}&depot=${pickupDepotId}`,
                 );
@@ -180,6 +185,11 @@ export function VehicleDetail() {
           >
             <span className="eyebrow">TU PRÓXIMO VIAJE</span>
             <PriceDisplay price={vehicle.pricePerDay} />
+            <p className="vehicle-stock">
+              {available
+                ? `${vehicle.stockAvailable} unidades disponibles para estas fechas`
+                : "Sin unidades disponibles para estas fechas"}
+            </p>
             <p>Un buen plan empieza con un buen auto.</p>
             <Select
               label="Lugar de recogida"
@@ -224,7 +234,11 @@ export function VehicleDetail() {
                 La devolución debe ser posterior a la recogida.
               </p>
             )}
-            <Button size="lg" type="submit" disabled={!valid || !pickupDepotId}>
+            <Button
+              size="lg"
+              type="submit"
+              disabled={!valid || !available || !pickupDepotId}
+            >
               Reservar ahora <Icon name="arrow" />
             </Button>
             <small>
