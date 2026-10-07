@@ -10,8 +10,6 @@ export function validateBackendEnvironment(env: NodeJS.ProcessEnv): void {
   if (!['jwks', 'local'].includes(mode))
     throw new Error('AUTH_MODE debe ser jwks o local.');
   if (mode === 'local') {
-    if (env.NODE_ENV === 'production')
-      throw new Error('AUTH_MODE=local prohibido en producción.');
     if (!env.AUTOS_LOCAL_JWT_SECRET || env.AUTOS_LOCAL_JWT_SECRET.length < 32)
       throw new Error('AUTOS_LOCAL_JWT_SECRET inválido.');
     if (env.INTERNAL_JWT_SECRET === env.AUTOS_LOCAL_JWT_SECRET)

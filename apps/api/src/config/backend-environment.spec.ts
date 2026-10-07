@@ -11,7 +11,6 @@ describe('Configuración backend segura', () => {
   it('admite desarrollo explícito', () =>
     expect(() => validateBackendEnvironment(valid())).not.toThrow());
   it.each([
-    { NODE_ENV: 'production' },
     { AUTH_MODE: 'none' },
     { AUTH_MODE: 'jwks' },
     { HOLD_TTL_MINUTES: '0' },
@@ -25,6 +24,10 @@ describe('Configuración backend segura', () => {
       validateBackendEnvironment({ ...valid(), ...change }),
     ).toThrow(),
   );
+  it('admite modo local académico en producción con secretos separados', () =>
+    expect(() =>
+      validateBackendEnvironment({ ...valid(), NODE_ENV: 'production' }),
+    ).not.toThrow());
   it('admite JWKS de producción sin modo local', () =>
     expect(() =>
       validateBackendEnvironment({

@@ -35,12 +35,8 @@ services:
       - key: WEBHOOK_ENCRYPTION_KEY
         sync: false
       - key: AUTH_MODE
-        value: jwks
-      - key: AUTH_ISSUER
-        sync: false
-      - key: AUTH_AUDIENCE
-        sync: false
-      - key: AUTH_JWKS_URL
+        value: local
+      - key: AUTOS_LOCAL_JWT_SECRET
         sync: false
       - key: WEBHOOK_WORKER_ENABLED
         value: "false"

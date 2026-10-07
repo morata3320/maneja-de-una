@@ -24,8 +24,6 @@ export class JwtTokenVerifier extends TokenVerifier {
   constructor() {
     super();
     if (process.env.AUTH_MODE === 'local') {
-      if (process.env.NODE_ENV === 'production')
-        throw new Error('AUTH_MODE=local prohibido en producción.');
       this.key = new TextEncoder().encode(
         requiredSecret('AUTOS_LOCAL_JWT_SECRET'),
       );
