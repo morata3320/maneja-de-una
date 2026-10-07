@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import { Badge, Button, Card, EmptyState, PageHeader } from "../components/ui";
 import { api } from "../services/apiClient";
 import type { Reservation } from "../models";
+import {
+  getVehicleImage,
+  getVehiclePlaceholder,
+} from "../controllers/useVehiclesController";
 export function MyReservations() {
   const [rows, setRows] = useState<Reservation[]>([]),
     [error, setError] = useState(""),
@@ -45,6 +49,19 @@ export function MyReservations() {
         {loading && <p role="status">Cargando reservas…</p>}
         {rows.map((r) => (
           <Card className="reservation-body" key={r.id}>
+            {r.vehicle?.brand && r.vehicle.model && (
+              <img
+                className="reservation-vehicle-image"
+                src={getVehicleImage(r.vehicle.brand, r.vehicle.model)}
+                alt={`${r.vehicle.brand} ${r.vehicle.model}`}
+                loading="lazy"
+                onError={(event) => {
+                  const fallback = getVehiclePlaceholder("Sedan");
+                  if (event.currentTarget.src.endsWith(fallback)) return;
+                  event.currentTarget.src = fallback;
+                }}
+              />
+            )}
             <Badge
               tone={
                 ["CONFIRMED", "COMPLETED"].includes(r.status)

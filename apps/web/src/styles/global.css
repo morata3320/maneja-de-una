@@ -1758,6 +1758,20 @@ button:disabled {
 .reservation-body {
   padding: 23px;
 }
+.reservation-vehicle-image {
+  width: 100%;
+  height: 180px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--color-surface-secondary);
+}
+.admin-vehicle-image {
+  width: 88px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 7px;
+  background: var(--color-surface-secondary);
+}
 .reservation-top,
 .reservation-bottom {
   display: flex;

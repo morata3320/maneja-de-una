@@ -9,22 +9,22 @@ const art: Record<string, string> = {
   Pickup: "/images/pickup.svg",
 };
 const vehicleImages: Record<string, string> = {
-  "toyota-corolla": "toyota-corolla.webp",
-  "kia-sportage": "kia-sportage.webp",
-  "hyundai-accent": "hyundai-accent.webp",
-  "toyota-rav4": "toyota-rav4.webp",
-  "kia-rio": "kia-rio.webp",
-  "chevrolet-onix": "chevrolet-onix.webp",
-  "nissan-sentra": "nissan-sentra.webp",
-  "hyundai-tucson": "hyundai-tucson.webp",
-  "chevrolet-tracker": "chevrolet-tracker.webp",
-  "kia-seltos": "kia-seltos.webp",
-  "mazda-mazda-3": "mazda-3.webp",
-  "suzuki-swift": "suzuki-swift.webp",
-  "renault-duster": "renault-duster.webp",
-  "ford-ecosport": "ford-ecosport.webp",
-  "volkswagen-t-cross": "volkswagen-tcross.webp",
-  "nissan-kicks": "nissan-kicks.webp",
+  "toyota-corolla": "/vehicles/toyota-corolla.jpg",
+  "kia-sportage": "/vehicles/kia-sportage.jpg",
+  "hyundai-accent": "/vehicles/hyundai-accent.jpg",
+  "toyota-rav4": "/vehicles/toyota-rav4.jpg",
+  "kia-rio": "/vehicles/kia-rio.jpg",
+  "chevrolet-onix": "/vehicles/chevrolet-onix.jpg",
+  "nissan-sentra": "/vehicles/nissan-sentra.jpg",
+  "hyundai-tucson": "/vehicles/hyundai-tucson.jpg",
+  "chevrolet-tracker": "/vehicles/chevrolet-tracker.jpg",
+  "kia-seltos": "/vehicles/kia-seltos.jpg",
+  "mazda-mazda-3": "/vehicles/mazda-3.jpg",
+  "suzuki-swift": "/vehicles/suzuki-swift.jpg",
+  "renault-duster": "/vehicles/renault-duster.jpg",
+  "ford-ecosport": "/vehicles/ford-ecosport.jpg",
+  "volkswagen-t-cross": "/vehicles/volkswagen-tcross.jpg",
+  "nissan-kicks": "/vehicles/nissan-kicks.jpg",
 };
 const slug = (value: string) =>
   value
@@ -37,8 +37,7 @@ const slug = (value: string) =>
 export const getVehiclePlaceholder = (category: string) =>
   art[category] || "/images/sedan.svg";
 export const getVehicleImage = (brand: string, model: string) => {
-  const filename = vehicleImages[`${slug(brand)}-${slug(model)}`];
-  return filename ? `/images/vehicles/${filename}` : "/images/sedan.svg";
+  return vehicleImages[`${slug(brand)}-${slug(model)}`] ?? "/images/sedan.svg";
 };
 export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   id: v.id,

@@ -9,6 +9,10 @@ import {
   Select,
 } from "../components/ui";
 import { api } from "../services/apiClient";
+import {
+  getVehicleImage,
+  getVehiclePlaceholder,
+} from "../controllers/useVehiclesController";
 
 type Row = Record<string, unknown>;
 type Page = { data: Row[]; total?: number; page?: number; limit?: number };
@@ -154,6 +158,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
   },
   vehicles: {
     columns: [
+      "image",
       "brand",
       "model",
       "category",
@@ -277,6 +282,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
   },
 };
 const labels: Record<string, string> = {
+  image: "Imagen",
   firstName: "Nombres",
   lastName: "Apellidos",
   createdAt: "Creado",
@@ -307,6 +313,29 @@ const display = (value: unknown) =>
       : value == null
         ? "—"
         : String(value);
+
+const tableCell = (resource: string, row: Row, column: string) => {
+  if (
+    resource === "vehicles" &&
+    column === "image" &&
+    typeof row.brand === "string" &&
+    typeof row.model === "string"
+  )
+    return (
+      <img
+        className="admin-vehicle-image"
+        src={getVehicleImage(row.brand, row.model)}
+        alt={`${row.brand} ${row.model}`}
+        loading="lazy"
+        onError={(event) => {
+          const fallback = getVehiclePlaceholder("Sedan");
+          if (event.currentTarget.src.endsWith(fallback)) return;
+          event.currentTarget.src = fallback;
+        }}
+      />
+    );
+  return display(row[column]);
+};
 
 function useCollection(url: string) {
   const [result, setResult] = useState<Page>({ data: [], total: 0 });
@@ -605,7 +634,7 @@ function CrudCollection({
                 {data.map((row) => (
                   <tr key={idOf(row)}>
                     {config.columns.map((column) => (
-                      <td key={column}>{display(row[column])}</td>
+                      <td key={column}>{tableCell(resource, row, column)}</td>
                     ))}
                     <td>
                       <div className="table-actions">
