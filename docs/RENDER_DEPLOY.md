@@ -8,7 +8,7 @@ La arquitectura productiva usa dos servicios de Render y conserva PostgreSQL 16 
 4. Crear `maneja-de-una-api-mdu` y `maneja-de-una-web-mdu`.
 5. En el servicio backend, abrir **Connect > Outbound IP ranges** y copiar los rangos reales.
 6. En Azure Portal abrir `maneja-de-una-pg > Networking > Firewall rules` y agregar únicamente esos rangos. No abrir `0.0.0.0/0`.
-7. Volver a Render y ejecutar un redeploy del backend. `start:render` aplica migraciones pendientes, asegura el ADMIN configurado sin promover usuarios existentes y después inicia NestJS; nunca ejecuta el seed completo.
+7. Volver a Render y ejecutar un redeploy del backend. `start:render` aplica migraciones pendientes, asegura el ADMIN configurado y después inicia NestJS. Para ampliar el catálogo una vez, definir temporalmente `RUN_CATALOG_SEED=true`: se ejecutará el seed idempotente entre el bootstrap y el inicio de la API. Tras confirmar 29 vehículos y 16 modelos, volver a `RUN_CATALOG_SEED=false` y redeployar. El seed completo de desarrollo nunca se ejecuta.
 8. Verificar `https://maneja-de-una-api-mdu.onrender.com/api/v2/health`, luego `/swagger` y `/swagger/autos`.
 9. Verificar `https://maneja-de-una-web-mdu.onrender.com` y refrescar rutas como `/vehiculos`, `/checkout/:id`, `/mis-reservas` y `/admin`.
 10. Probar registro, login, favorito, reserva, pago simulado y administración.

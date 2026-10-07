@@ -42,6 +42,8 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      - key: RUN_CATALOG_SEED
+        value: "false"
       - key: WEBHOOK_WORKER_ENABLED
         value: "false"
       - key: WEBHOOK_ALLOW_LOOPBACK
