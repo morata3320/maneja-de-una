@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { vehicles } from "../mocks/vehicles";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useVehicleController, useVehiclesController } from "../controllers/useVehiclesController";
 import { VehicleArt, VehicleCard } from "../components/vehicle/VehicleCard";
 import {
   Badge,
@@ -15,16 +15,18 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 import { useExperience } from "../components/LocalExperience";
-import { pickupLocations } from "../mocks/locations";
 export function VehicleDetail() {
   const { id } = useParams();
-  const vehicle = vehicles.find((v) => v.id === id);
+  const navigate = useNavigate();
+  const { vehicle, loading } = useVehicleController(id);
+  const { vehicles } = useVehiclesController("?limit=3");
   const [angle, setAngle] = useState(0);
   const [start, setStart] = useState("2026-10-12");
   const [end, setEnd] = useState("2026-10-15");
   const [open, setOpen] = useState(false);
   const { favorites, comparison, toggleFavorite, toggleCompare } =
     useExperience();
+  if (loading) return <p className="container section" role="status">Cargando vehÃ­culoâ€¦</p>;
   if (!vehicle)
     return (
       <EmptyState
@@ -157,18 +159,14 @@ export function VehicleDetail() {
             className="booking-card card"
             onSubmit={(e) => {
               e.preventDefault();
-              if (valid) setOpen(true);
+              if (valid) navigate(`/checkout/${id}?start=${start}&end=${end}`);
             }}
           >
             <span className="eyebrow">TU PRÓXIMO VIAJE</span>
             <PriceDisplay price={vehicle.pricePerDay} />
             <p>Un buen plan empieza con un buen auto.</p>
             <Select label="Lugar de recogida">
-              {pickupLocations
-                .filter((l) => l.includes(vehicle.location))
-                .map((l) => (
-                  <option key={l}>{l}</option>
-                ))}
+              <option>{vehicle.location}</option>
             </Select>
             <Input
               label="Recogida"

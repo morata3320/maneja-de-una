@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
-import { vehicles, categories } from "../mocks/vehicles";
+import { useVehiclesController } from "../controllers/useVehiclesController";
 import { SearchBar } from "../components/search/SearchBar";
 import { VehicleCard } from "../components/vehicle/VehicleCard";
 import { SectionHeader } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 export function Home() {
+  const { vehicles } = useVehiclesController("?limit=4");
+  const categories = [...new Set(vehicles.map((vehicle) => vehicle.category))];
   return (
     <>
       <section className="hero">
@@ -102,17 +104,17 @@ export function Home() {
             title="¿Qué te mueve hoy?"
           />
           <div className="category-grid">
-            {categories.map((c, i) => (
+            {categories.map((category, i) => (
               <Link
-                key={c.name}
+                key={category}
                 className={`category-card category-${i}`}
-                to={`/vehiculos?categoria=${encodeURIComponent(c.name)}`}
+                to={`/vehiculos?category=${encodeURIComponent(category)}`}
               >
                 <div>
-                  <h3>{c.name === "Hatchback" ? "Compactos" : c.name}</h3>
-                  <p>{c.label}</p>
+                  <h3>{category}</h3>
+                  <p>Opciones reales disponibles</p>
                 </div>
-                <img src={c.image} alt={`Categoría ${c.name}`} loading="lazy" />
+                <img src={vehicles.find((vehicle) => vehicle.category === category)?.image} alt={`Categoría ${category}`} loading="lazy" />
                 <span className="round-arrow">
                   <Icon name="arrow" />
                 </span>

@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: maneja-de-una-api-mdu
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+    buildCommand: cd apps/api && npm ci --include=dev && npm run build
+    startCommand: cd apps/api && npm run start:render
+    healthCheckPath: /api/v2/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        value: maneja-de-una-pg.postgres.database.azure.com
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: maneja_de_una
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: CORS_ORIGINS
+        value: https://maneja-de-una-web-mdu.onrender.com
+      - key: INTERNAL_JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1h
+      - key: PAGINATION_SECRET
+        generateValue: true
+      - key: WEBHOOK_ENCRYPTION_KEY
+        sync: false
+      - key: AUTH_MODE
+        value: jwks
+      - key: AUTH_ISSUER
+        sync: false
+      - key: AUTH_AUDIENCE
+        sync: false
+      - key: AUTH_JWKS_URL
+        sync: false
+      - key: WEBHOOK_WORKER_ENABLED
+        value: "false"
+      - key: WEBHOOK_ALLOW_LOOPBACK
+        value: "false"
+  - type: web
+    name: maneja-de-una-web-mdu
+    runtime: static
+    branch: main
+    rootDir: apps/web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: VITE_API_URL
+        value: https://maneja-de-una-api-mdu.onrender.com/api/v2
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

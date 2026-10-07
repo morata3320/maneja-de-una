@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useExperience } from "../components/LocalExperience";
-import { vehicles } from "../mocks/vehicles";
+import { useVehiclesController } from "../controllers/useVehiclesController";
 import {
   Button,
   EmptyState,
@@ -12,6 +12,7 @@ import { Icon } from "../components/ui/Icon";
 import { VehicleArt } from "../components/vehicle/VehicleCard";
 export function Compare() {
   const { comparison, toggleCompare } = useExperience();
+  const { vehicles } = useVehiclesController("?limit=100");
   const selected = vehicles.filter((v) => comparison.includes(v.id));
   return (
     <div className="container section">
@@ -35,12 +36,6 @@ export function Compare() {
           <Link className="btn btn-primary" to="/vehiculos">
             Explorar autos <Icon name="arrow" />
           </Link>
-          <Button
-            variant="outline"
-            onClick={() => toggleCompare("toyota-rav4")}
-          >
-            Empezar con Toyota RAV4
-          </Button>
         </EmptyState>
       ) : (
         <div

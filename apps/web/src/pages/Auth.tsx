@@ -2,11 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Checkbox, Input, Modal } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
+import { useAuthController } from "../controllers/useAuthController";
+
 export function Auth({ register = false }: { register?: boolean }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [modal, setModal] = useState("");
+  const auth = useAuthController();
   return (
     <div className="auth-layout">
       <div className="auth-visual">
@@ -18,10 +21,7 @@ export function Auth({ register = false }: { register?: boolean }) {
           <br />
           <em>en el camino.</em>
         </h2>
-        <img
-          src="/images/sedan.svg"
-          alt="Ilustración de un sedán listo para un nuevo viaje"
-        />
+        <img src="/images/sedan.svg" alt="Sedán listo para un nuevo viaje" />
         <p>Un auto para cada versión de ti.</p>
       </div>
       <div className="auth-form-wrap">
@@ -33,7 +33,7 @@ export function Auth({ register = false }: { register?: boolean }) {
           <h1>{register ? "Tu camino empieza aquí." : "Qué bueno verte."}</h1>
           <p>
             {register
-              ? "Crea tu espacio para guardar tus próximos planes."
+              ? "Crea tu cuenta para reservar."
               : "Entra y retoma tus próximos planes."}
           </p>
           <form
@@ -44,28 +44,56 @@ export function Auth({ register = false }: { register?: boolean }) {
                 return;
               }
               setError("");
-              setModal(
-                register
-                  ? "Cuenta de demostración"
-                  : "Inicio de sesión de demostración",
+              void auth.submit(
+                register,
+                Object.fromEntries(new FormData(e.currentTarget)) as Record<
+                  string,
+                  string
+                >,
               );
             }}
           >
             {register && (
-              <Input
-                label="Nombre completo"
-                name="name"
-                autoComplete="name"
-                placeholder="Tu nombre"
-                required
-              />
+              <>
+                <Input
+                  label="Nombres"
+                  name="firstName"
+                  autoComplete="given-name"
+                  minLength={2}
+                  maxLength={50}
+                  required
+                />
+                <Input
+                  label="Apellidos"
+                  name="lastName"
+                  autoComplete="family-name"
+                  minLength={2}
+                  maxLength={50}
+                  required
+                />
+                <Input
+                  label="Cédula"
+                  name="cedula"
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  required
+                />
+                <Input
+                  label="Teléfono"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  pattern="\+?\d{7,15}"
+                  required
+                />
+              </>
             )}
             <Input
               label="Correo electrónico"
               name="email"
               type="email"
               autoComplete="email"
-              placeholder="tu@correo.com"
+              maxLength={254}
               required
             />
             <Input
@@ -74,9 +102,9 @@ export function Auth({ register = false }: { register?: boolean }) {
               type="password"
               autoComplete={register ? "new-password" : "current-password"}
               minLength={8}
+              maxLength={72}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Al menos 8 caracteres"
               required
             />
             {register && (
@@ -86,13 +114,12 @@ export function Auth({ register = false }: { register?: boolean }) {
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Repite tu contraseña"
                 required
               />
             )}
-            {error && (
-              <p role="alert" className="form-error">
-                {error}
+            {(error || auth.error) && (
+              <p role="alert" aria-live="assertive" className="form-error">
+                {error || auth.error}
               </p>
             )}
             <div className="auth-options">
@@ -114,17 +141,12 @@ export function Auth({ register = false }: { register?: boolean }) {
                 </>
               )}
             </div>
-            {register && (
-              <button
-                type="button"
-                className="text-link"
-                onClick={() => setModal("Términos y privacidad")}
-              >
-                Leer términos y privacidad
-              </button>
-            )}
-            <Button type="submit" size="lg">
-              {register ? "Crear cuenta" : "Iniciar sesión"}
+            <Button type="submit" size="lg" disabled={auth.loading}>
+              {auth.loading
+                ? "Procesando…"
+                : register
+                  ? "Crear cuenta"
+                  : "Iniciar sesión"}
               <Icon name="arrow" />
             </Button>
           </form>
@@ -136,16 +158,12 @@ export function Auth({ register = false }: { register?: boolean }) {
           </p>
           <div className="auth-note">
             <Icon name="shield" size={16} />
-            Vista previa · No se envían tus datos.
+            Conexión segura con API V2.
           </div>
         </div>
       </div>
       <Modal open={!!modal} title={modal} onClose={() => setModal("")}>
-        <p>
-          {modal === "Recuperar contraseña"
-            ? "La recuperación de contraseña estará disponible cuando se active el acceso a tu cuenta."
-            : "Estás explorando una demostración visual. No se ha enviado ni guardado tu información. Las cuentas, reservas y condiciones definitivas se habilitarán en una próxima fase."}
-        </p>
+        <p>Contacta al administrador para recuperar tu acceso.</p>
         <Button onClick={() => setModal("")}>Entendido</Button>
       </Modal>
     </div>

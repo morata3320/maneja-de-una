@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { useExperience } from "../components/LocalExperience";
-import { vehicles } from "../mocks/vehicles";
+import { useVehiclesController } from "../controllers/useVehiclesController";
 import { VehicleCard } from "../components/vehicle/VehicleCard";
 import { EmptyState, PageHeader } from "../components/ui";
 export function Favorites() {
   const { favorites } = useExperience();
+  const { vehicles } = useVehiclesController("?limit=100");
   const items = vehicles.filter((v) => favorites.includes(v.id));
   return (
     <div className="container section">

@@ -1,0 +1,67 @@
+openapi: 3.0.3
+info:
+  title: Maneja de Una API
+  description: Marketplace REST de alquiler de vehiculos. Los pagos son simulados.
+  version: '2.0'
+servers:
+  - url: /api/v2
+tags:
+  - { name: Auth }
+  - { name: Vehicles }
+  - { name: Brands }
+  - { name: Vehicle Models }
+  - { name: Categories }
+  - { name: Locations }
+  - { name: Suppliers }
+  - { name: Depots }
+  - { name: Depot Scores }
+  - { name: Users }
+  - { name: Favorites }
+  - { name: Reservations }
+  - { name: Payments }
+  - { name: Admin }
+  - { name: Health }
+paths:
+  /auth/register: { post: { tags: [Auth], responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: Conflict } } } }
+  /auth/login: { post: { tags: [Auth], responses: { '200': { description: OK }, '401': { description: Unauthorized } } } }
+  /auth/me: { get: { tags: [Auth], security: [bearerAuth: []], responses: { '200': { description: OK }, '401': { description: Unauthorized } } } }
+  /users: { get: { tags: [Users], security: [bearerAuth: []], responses: { '200': { description: OK } } }, post: { tags: [Users], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /users/me: { patch: { tags: [Users], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
+  /users/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Users], security: [bearerAuth: []], responses: { '200': { description: OK } } }, put: { tags: [Users], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Users], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Users], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /users/{id}/status: { patch: { tags: [Users], security: [bearerAuth: []], parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { description: OK } } } }
+  /vehicles: { get: { tags: [Vehicles], parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }], responses: { '200': { description: OK } } }, post: { tags: [Vehicles], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /vehicles/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Vehicles], responses: { '200': { description: OK } } }, put: { tags: [Vehicles], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Vehicles], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Vehicles], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /brands: { get: { tags: [Brands], responses: { '200': { description: OK } } }, post: { tags: [Brands], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /brands/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Brands], responses: { '200': { description: OK } } }, put: { tags: [Brands], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Brands], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Brands], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /vehicle-models: { get: { tags: [Vehicle Models], responses: { '200': { description: OK } } }, post: { tags: [Vehicle Models], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /vehicle-models/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Vehicle Models], responses: { '200': { description: OK } } }, patch: { tags: [Vehicle Models], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Vehicle Models], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /categories: { get: { tags: [Categories], responses: { '200': { description: OK } } }, post: { tags: [Categories], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /categories/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Categories], responses: { '200': { description: OK } } }, patch: { tags: [Categories], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Categories], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /locations: { get: { tags: [Locations], responses: { '200': { description: OK } } }, post: { tags: [Locations], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /locations/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Locations], responses: { '200': { description: OK } } }, patch: { tags: [Locations], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Locations], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /suppliers: { get: { tags: [Suppliers], responses: { '200': { description: OK } } }, post: { tags: [Suppliers], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /suppliers/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Suppliers], responses: { '200': { description: OK } } }, patch: { tags: [Suppliers], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Suppliers], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /depots: { get: { tags: [Depots], responses: { '200': { description: OK } } }, post: { tags: [Depots], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /depots/{id}: { parameters: [{ $ref: '#/components/parameters/IntegerId' }], get: { tags: [Depots], responses: { '200': { description: OK } } }, patch: { tags: [Depots], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Depots], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /depot-scores: { get: { tags: [Depot Scores], responses: { '200': { description: OK } } }, post: { tags: [Depot Scores], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /depot-scores/{id}: { parameters: [{ $ref: '#/components/parameters/IntegerId' }], get: { tags: [Depot Scores], responses: { '200': { description: OK } } }, patch: { tags: [Depot Scores], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Depot Scores], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /favorites: { get: { tags: [Favorites], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
+  /favorites/{vehicleId}: { post: { tags: [Favorites], security: [bearerAuth: []], parameters: [{ name: vehicleId, in: path, required: true, schema: { type: string, format: uuid } }], responses: { '201': { description: Created } } }, delete: { tags: [Favorites], security: [bearerAuth: []], parameters: [{ name: vehicleId, in: path, required: true, schema: { type: string, format: uuid } }], responses: { '204': { description: No Content } } } }
+  /reservations: { get: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } }, post: { tags: [Reservations], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
+  /reservations/my: { get: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
+  /reservations/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Reservations], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
+  /reservations/{id}/cancel: { post: { tags: [Reservations], security: [bearerAuth: []], parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { description: OK } } } }
+  /payments/simulate: { post: { tags: [Payments], description: Valida formato y registra solo marca y ultimos cuatro digitos. Nunca PAN ni CVV., security: [bearerAuth: []], responses: { '201': { description: Approved }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: Reservation already paid } } } }
+  /payments: { get: { tags: [Payments], security: [bearerAuth: []], responses: { '200': { description: OK } } } }
+  /admin/dashboard: { get: { tags: [Admin], security: [bearerAuth: []], responses: { '200': { description: OK }, '403': { description: Forbidden } } } }
+  /health: { get: { tags: [Health], responses: { '200': { description: OK } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    IntegerId: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+  responses:
+    BadRequest: { description: Validation error }

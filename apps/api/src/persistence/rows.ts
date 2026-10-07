@@ -34,7 +34,12 @@ export interface UserRow {
   name: string;
   email: string;
   password_hash: string;
-  role: 'CUSTOMER' | 'ADMIN';
+  first_name: string;
+  last_name: string;
+  cedula: string | null;
+  phone: string | null;
+  role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   active: boolean;
   created_at: Date;
   updated_at: Date;

@@ -83,11 +83,21 @@ export async function seedDevelopment(db: DataSource): Promise<void> {
     );
     if (process.env.SEED_ADMIN_EMAIL && process.env.SEED_ADMIN_PASSWORD) {
       await m.query(
-        "INSERT INTO users(id,name,email,password_hash,role) VALUES($1,'Administrador',$2,$3,'ADMIN') ON CONFLICT(email) DO NOTHING",
+        "INSERT INTO users(id,name,first_name,last_name,email,password_hash,role,status) VALUES($1,'Administrador Demo','Administrador','Demo',$2,$3,'ADMIN','ACTIVE') ON CONFLICT(email) DO NOTHING",
         [
           seedId(900),
           process.env.SEED_ADMIN_EMAIL.toLowerCase(),
           await hash(process.env.SEED_ADMIN_PASSWORD, 12),
+        ],
+      );
+    }
+    if (process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD) {
+      await m.query(
+        "INSERT INTO users(id,name,first_name,last_name,email,password_hash,role,status) VALUES($1,'Usuario Demo','Usuario','Demo',$2,$3,'USER','ACTIVE') ON CONFLICT(email) DO NOTHING",
+        [
+          seedId(901),
+          process.env.SEED_USER_EMAIL.toLowerCase(),
+          await hash(process.env.SEED_USER_PASSWORD, 12),
         ],
       );
     }

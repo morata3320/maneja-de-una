@@ -13,14 +13,27 @@ import type { UserRow } from '../persistence/rows';
 import type { LoginDto, RegisterDto } from './auth.dto';
 export type PublicUser = Pick<
   UserRow,
-  'id' | 'name' | 'email' | 'role' | 'active'
->;
+  | 'id'
+  | 'name'
+  | 'first_name'
+  | 'last_name'
+  | 'cedula'
+  | 'phone'
+  | 'email'
+  | 'active'
+  | 'status'
+> & { role: 'CUSTOMER' | 'ADMIN' };
 export const publicUser = (u: UserRow): PublicUser => ({
   id: u.id,
   name: u.name,
+  first_name: u.first_name,
+  last_name: u.last_name,
+  cedula: u.cedula,
+  phone: u.phone,
   email: u.email,
-  role: u.role,
+  role: u.role === 'USER' ? 'CUSTOMER' : u.role,
   active: u.active,
+  status: u.status,
 });
 @Injectable()
 export class AuthService {
@@ -34,7 +47,7 @@ export class AuthService {
     if (Buffer.byteLength(body.password, 'utf8') > 72)
       throw new BadRequestException('Contraseña excede 72 bytes.');
     const rows = await this.db.query<UserRow[]>(
-      "INSERT INTO users(id,name,email,password_hash,role) VALUES($1,$2,$3,$4,'CUSTOMER') ON CONFLICT(email) DO NOTHING RETURNING *",
+      "INSERT INTO users(id,name,first_name,last_name,email,password_hash,role,status) VALUES($1,$2,$2,'',$3,$4,'USER','ACTIVE') ON CONFLICT(email) DO NOTHING RETURNING *",
       [
         randomUUID(),
         body.name,
@@ -60,7 +73,7 @@ export class AuthService {
     );
     if (!user || !valid)
       throw new UnauthorizedException('Credenciales inválidas.');
-    const accessToken = await new SignJWT({ role: user.role })
+    const accessToken = await new SignJWT({ role: user.role, email: user.email })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(user.id)
       .setIssuedAt()

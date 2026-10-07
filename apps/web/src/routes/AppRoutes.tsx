@@ -8,14 +8,9 @@ import { VehicleDetail } from "../pages/VehicleDetail";
 import { Compare } from "../pages/Compare";
 import { Favorites } from "../pages/Favorites";
 import { Auth } from "../pages/Auth";
-import { Reservations } from "../pages/Reservations";
-import {
-  AdminDashboard,
-  AdminVehicles,
-  AdminReservations,
-  AdminUsers,
-  AdminSettings,
-} from "../pages/Admin";
+import { MyReservations } from "../views/MyReservations";
+import { AdminApiCollection, AdminDashboardApi } from "../views/AdminApi";
+import { Checkout } from "../views/Checkout";
 import { EmptyState } from "../components/ui";
 export function AppRoutes() {
   return (
@@ -28,8 +23,9 @@ export function AppRoutes() {
         <Route path="favoritos" element={<Favorites />} />
         <Route path="login" element={<Auth key="login" />} />
         <Route path="registro" element={<Auth register key="register" />} />
+        <Route path="checkout/:vehicleId" element={<Checkout />} />
         <Route element={<AccountLayout />}>
-          <Route path="mis-reservas" element={<Reservations />} />
+          <Route path="mis-reservas" element={<MyReservations />} />
         </Route>
         <Route
           path="*"
@@ -46,11 +42,19 @@ export function AppRoutes() {
         />
       </Route>
       <Route path="admin" element={<AdminLayout />}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="vehiculos" element={<AdminVehicles />} />
-        <Route path="reservas" element={<AdminReservations />} />
-        <Route path="usuarios" element={<AdminUsers />} />
-        <Route path="configuracion" element={<AdminSettings />} />
+        <Route index element={<AdminDashboardApi />} />
+        <Route path="vehiculos" element={<AdminApiCollection resource="vehicles" title="VehÃ­culos" />} />
+        <Route path="reservas" element={<AdminApiCollection resource="reservations" title="Reservas" action="cancel" />} />
+        <Route path="usuarios" element={<AdminApiCollection resource="users" title="Clientes" />} />
+        <Route path="clientes" element={<AdminApiCollection resource="users" title="Clientes" />} />
+        <Route path="marcas" element={<AdminApiCollection resource="brands" title="Marcas" create />} />
+        <Route path="modelos" element={<AdminApiCollection resource="vehicle-models" title="Modelos" />} />
+        <Route path="categorias" element={<AdminApiCollection resource="categories" title="CategorÃ­as" create />} />
+        <Route path="ubicaciones" element={<AdminApiCollection resource="locations" title="Ubicaciones" />} />
+        <Route path="proveedores" element={<AdminApiCollection resource="suppliers" title="Proveedores" create />} />
+        <Route path="agencias" element={<AdminApiCollection resource="depots" title="Agencias" />} />
+        <Route path="calificaciones" element={<AdminApiCollection resource="depot-scores" title="Calificaciones" />} />
+        <Route path="pagos" element={<AdminApiCollection resource="payments" title="Pagos" />} />
       </Route>
     </Routes>
   );

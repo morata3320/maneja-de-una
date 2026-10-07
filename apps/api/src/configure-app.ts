@@ -14,6 +14,8 @@ import { requestContextMiddleware } from './common/middleware/request-context.mi
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { autosDocument } from './integrations/autos/contract/contract-document';
 import type { OpenAPIObject } from '@nestjs/swagger';
+import { V2Module } from './v2/v2.module';
+import { HealthModule } from './health/health.module';
 
 export async function configureApp(app: INestApplication): Promise<void> {
   const origins = app
@@ -29,7 +31,10 @@ export async function configureApp(app: INestApplication): Promise<void> {
   app.use(requestContextMiddleware);
   app.use(helmet());
   app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: 'autos/v1/{*path}', method: RequestMethod.ALL }],
+    exclude: [
+      { path: 'autos/v1/{*path}', method: RequestMethod.ALL },
+      { path: 'api/v2/{*path}', method: RequestMethod.ALL },
+    ],
   });
   app.enableCors({
     origin: origins,
@@ -58,15 +63,31 @@ export async function configureApp(app: INestApplication): Promise<void> {
   );
   const config = new DocumentBuilder()
     .setTitle('Maneja de Una API')
-    .setDescription(
-      'API REST del marketplace de alquiler de vehículos Maneja de Una',
-    )
-    .setVersion('1.0.0')
+    .setDescription('Marketplace REST de alquiler de vehículos.')
+    .setVersion('2.0')
+    .addBearerAuth()
+    .addTag('Auth')
+    .addTag('Vehicles')
+    .addTag('Brands')
+    .addTag('Vehicle Models')
+    .addTag('Categories')
+    .addTag('Locations')
+    .addTag('Suppliers')
+    .addTag('Depots')
+    .addTag('Depot Scores')
+    .addTag('Users')
+    .addTag('Favorites')
+    .addTag('Reservations')
+    .addTag('Payments')
+    .addTag('Admin')
+    .addTag('Health')
     .build();
   SwaggerModule.setup(
     'swagger',
     app,
-    SwaggerModule.createDocument(app, config),
+    SwaggerModule.createDocument(app, config, {
+      include: [V2Module, HealthModule],
+    }),
   );
   SwaggerModule.setup(
     'swagger/autos',

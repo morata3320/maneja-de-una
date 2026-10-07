@@ -19,6 +19,7 @@ import { LocationsModule } from './locations/locations.module';
 import { RentalsModule } from './rentals/rentals.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { BookingModule } from './integrations/booking/booking.module';
+import { V2Module } from './v2/v2.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { BookingModule } from './integrations/booking/booking.module';
     RentalsModule,
     FavoritesModule,
     BookingModule,
+    V2Module,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
