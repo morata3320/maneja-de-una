@@ -414,7 +414,7 @@ describe('Marketplace API V2', () => {
     );
     expect(paid).toMatchObject({
       status: 'CONFIRMED',
-      vehicle: { id: seedId(101), name: 'Toyota Corolla' },
+      vehicle: { id: seedId(117), name: 'Toyota RAV4' },
       customer: { email },
       payment: { status: 'APPROVED', brand: 'UNKNOWN', last4: '1111' },
       pickupDepot: { id: 1, location: 'Aeropuerto Quito' },
