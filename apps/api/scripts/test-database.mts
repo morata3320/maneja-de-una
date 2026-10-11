@@ -56,8 +56,22 @@ try {
     ],
   ];
   for (const args of commands) {
-    const result = spawnSync(process.execPath, args, { env, stdio: 'inherit' });
+    const result = spawnSync(process.execPath, args, {
+      env,
+      encoding: 'utf8',
+    });
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
     if (result.status !== 0) {
+      if (process.env.GITHUB_ACTIONS === 'true') {
+        const diagnostic = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+          .trim()
+          .slice(-6000)
+          .replace(/%/g, '%25')
+          .replace(/\r/g, '%0D')
+          .replace(/\n/g, '%0A');
+        console.error(`::error title=E2E aislado falló::${diagnostic}`);
+      }
       process.exitCode = result.status ?? 1;
       break;
     }
