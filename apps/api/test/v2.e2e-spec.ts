@@ -258,7 +258,7 @@ describe('Marketplace API V2', () => {
 
   it('crea reserva, evita double booking y protege propiedad', async () => {
     const body = {
-      vehicleId: seedId(101),
+      vehicleId: seedId(117),
       pickupDepotId: 1,
       startDate: '2030-01-10T10:00:00Z',
       endDate: '2030-01-13T10:00:00Z',
@@ -359,7 +359,7 @@ describe('Marketplace API V2', () => {
       .send({ ...base, cardNumber: arbitraryCardA })
       .expect(409);
 
-    await request(app.getHttpServer())
+    const secondReservation = await request(app.getHttpServer())
       .post('/api/v2/reservations')
       .auth(token, { type: 'bearer' })
       .send({
