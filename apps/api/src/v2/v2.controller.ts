@@ -44,6 +44,7 @@ import {
   VehicleDto,
   VehiclePatchDto,
   VehicleStockDto,
+  AvailabilitySlotDto,
 } from './dto';
 import { V2Service } from './v2.service';
 
@@ -113,7 +114,7 @@ export class UsersV2Controller {
 }
 
 @ApiTags('Vehicles')
-@ApiExtraModels(VehicleStockDto)
+@ApiExtraModels(VehicleStockDto, AvailabilitySlotDto)
 @Controller('api/v2/vehicles')
 export class VehiclesV2Controller {
   constructor(private readonly s: V2Service) {}
@@ -148,6 +149,41 @@ export class VehiclesV2Controller {
   })
   list(@Query() q: Record<string, unknown>) {
     return this.s.vehicles(q);
+  }
+  @Get('publication-views/me')
+  @UseGuards(InternalGuard)
+  @ApiBearerAuth()
+  publicationViews(@Req() r: InternalRequest) {
+    return this.s.publicationViews(r.user.id);
+  }
+  @Get(':id/availability')
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiQuery({ name: 'slotMinutes', required: false, enum: [30, 60] })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        vehicleId: { type: 'string', format: 'uuid' },
+        slotMinutes: { type: 'integer' },
+        slots: {
+          type: 'array',
+          items: { $ref: getSchemaPath(AvailabilitySlotDto) },
+        },
+      },
+    },
+  })
+  availability(
+    @Param('id') id: string,
+    @Query() q: Record<string, unknown>,
+  ) {
+    return this.s.vehicleAvailability(id, q);
+  }
+  @Post(':id/view')
+  @UseGuards(InternalGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  markViewed(@Req() r: InternalRequest, @Param('id') id: string) {
+    return this.s.markPublicationViewed(r.user.id, id);
   }
   @Get(':id')
   @ApiQuery({ name: 'startDate', required: false, type: String })

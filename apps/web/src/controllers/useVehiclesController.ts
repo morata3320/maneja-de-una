@@ -69,6 +69,8 @@ export const mapVehicle = (v: ApiVehicle): Vehicle => ({
   quantity: v.quantity,
   stockTotal: v.stockTotal,
   stockAvailable: v.stockAvailable,
+  publicationId: v.publicationId ?? null,
+  isNew: v.isNew === true,
   pickupDepots: v.pickupDepots ?? [],
 });
 export function useVehiclesController(query = "") {

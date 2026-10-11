@@ -62,6 +62,21 @@ describe('Marketplace API V2', () => {
     ).toEqual(
       expandedCatalog.map(({ brand, model }) => `${brand} ${model}`).sort(),
     );
+    const classifications = await db.query<
+      Array<{ model: string; category: string }>
+    >(`SELECT vm.name model,c.name category
+       FROM vehicle_model_categories vmc
+       JOIN vehicle_models vm ON vm.id=vmc.model_id
+       JOIN categories c ON c.id=vmc.category_id
+       ORDER BY vm.name`);
+    expect(classifications).toEqual(
+      expect.arrayContaining([
+        { model: 'Corolla', category: 'Sedan' },
+        { model: 'Sportage', category: 'SUV' },
+        { model: 'Accent', category: 'Sedan' },
+        { model: 'Swift', category: 'Compact' },
+      ]),
+    );
   });
 
   it('registra USER sin permitir mass assignment y autentica JWT', async () => {
@@ -143,6 +158,14 @@ describe('Marketplace API V2', () => {
       .get('/api/v2/vehicle-models?limit=100')
       .expect(200);
     expect(models.body.total).toBe(16);
+    expect(models.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Corolla',
+          categoryIds: [seedId(21)],
+        }),
+      ]),
+    );
     await request(app.getHttpServer())
       .patch('/api/v2/vehicles/' + seedId(117))
       .auth(adminToken, { type: 'bearer' })
@@ -171,10 +194,13 @@ describe('Marketplace API V2', () => {
         expect.objectContaining({ brand: 'Nissan', model: 'Kicks' }),
       ]),
     );
+    expect(
+      all.body.data.filter((row: { isNew: boolean }) => row.isNew),
+    ).toHaveLength(1);
     for (const [query, expected] of [
       ['brand=Chevrolet', 2],
       ['model=RAV4', 1],
-      ['category=Compact', 7],
+      ['category=Compact', 2],
       ['location=Aeropuerto%20Quito', 11],
     ] as const) {
       const filtered = await request(app.getHttpServer())
@@ -192,6 +218,26 @@ describe('Marketplace API V2', () => {
     expect(detail.body.pickupDepots).toEqual([
       expect.objectContaining({ id: 1, location: 'Aeropuerto Quito' }),
     ]);
+    const schedule = await request(app.getHttpServer())
+      .get(
+        `/api/v2/vehicles/${seedId(101)}/availability?startDate=2040-01-10T00:00:00Z&endDate=2040-01-11T00:00:00Z&slotMinutes=60`,
+      )
+      .expect(200);
+    expect(schedule.body.slots).toHaveLength(24);
+    expect(schedule.body.slots[0]).toEqual(
+      expect.objectContaining({ available: true, availableUnits: 5 }),
+    );
+    await request(app.getHttpServer())
+      .post(`/api/v2/vehicles/${detail.body.id}/view`)
+      .auth(token, { type: 'bearer' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v2/vehicles/publication-views/me')
+      .auth(token, { type: 'bearer' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.publicationIds).toContain(detail.body.publicationId);
+      });
   });
 
   it('agrega favorito, rechaza duplicado y elimina', async () => {
@@ -313,7 +359,7 @@ describe('Marketplace API V2', () => {
       .send({ ...base, cardNumber: arbitraryCardA })
       .expect(409);
 
-    const secondReservation = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post('/api/v2/reservations')
       .auth(token, { type: 'bearer' })
       .send({
@@ -446,8 +492,6 @@ describe('Marketplace API V2', () => {
       modelId: seedId(14),
       categoryId: seedId(22),
       locationId: seedId(31),
-      supplierId: 1,
-      depotId: 1,
       year: 2025,
       color: 'Blanco',
       licensePlate: 'STKTEST-001',
@@ -462,7 +506,13 @@ describe('Marketplace API V2', () => {
       status: 'AVAILABLE',
       active: true,
       quantity: 3,
+      additionalLicensePlates: ['STKTEST-002'],
     };
+    await request(app.getHttpServer())
+      .post('/api/v2/vehicles')
+      .auth(adminToken, { type: 'bearer' })
+      .send({ ...vehicleBody, brandId: seedId(2) })
+      .expect(400);
     const created = await request(app.getHttpServer())
       .post('/api/v2/vehicles')
       .auth(adminToken, { type: 'bearer' })
@@ -478,7 +528,11 @@ describe('Marketplace API V2', () => {
     await request(app.getHttpServer())
       .put(`/api/v2/vehicles/${created.body.id}`)
       .auth(adminToken, { type: 'bearer' })
-      .send({ ...vehicleBody, quantity: 4 })
+      .send({
+        ...vehicleBody,
+        quantity: 4,
+        additionalLicensePlates: ['STKTEST-003'],
+      })
       .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({ quantity: 4, stockTotal: 4 });
@@ -509,15 +563,13 @@ describe('Marketplace API V2', () => {
           .send({ ...period, vehicleId: units.body.data[0].id }),
       ),
     );
-    expect(concurrent.map(({ status }) => status).sort((a, b) => a - b)).toEqual([
-      201, 409,
-    ]);
-    const firstReservation = concurrent.find(({ status }) => status === 201)!;
-    const secondReservation = await request(app.getHttpServer())
+    expect(concurrent.map(({ status }) => status)).toEqual([201, 201]);
+    const firstReservation = concurrent[0];
+    await request(app.getHttpServer())
       .post('/api/v2/reservations')
       .auth(token, { type: 'bearer' })
       .send({ ...period, vehicleId: units.body.data[1].id })
-      .expect(201);
+      .expect(409);
 
     const availability = await request(app.getHttpServer())
       .get(
@@ -536,7 +588,7 @@ describe('Marketplace API V2', () => {
 
     for (const reservationId of [
       firstReservation.body.id,
-      secondReservation.body.id,
+      concurrent[1].body.id,
     ])
       await request(app.getHttpServer())
         .post(`/api/v2/reservations/${reservationId}/cancel`)

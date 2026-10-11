@@ -287,6 +287,11 @@ async function expandVehicleCatalog(manager: EntityManager): Promise<number> {
       brandId,
       vehicle.model,
     );
+    await manager.query(
+      `INSERT INTO vehicle_model_categories(model_id,category_id)
+       VALUES($1,$2) ON CONFLICT DO NOTHING`,
+      [modelId, categoryIds.get(vehicle.category)],
+    );
     const vehicleId = catalogSeedId(117 + index);
     const [existing] = await manager.query<IdRow[]>(
       'SELECT id FROM vehicles WHERE id=$1 OR license_plate=$2 LIMIT 1',
@@ -317,6 +322,19 @@ async function expandVehicleCatalog(manager: EntityManager): Promise<number> {
     );
     created++;
   }
+  await manager.query(`
+    INSERT INTO vehicle_publications(id,model_id,vehicle_id,published_at)
+    SELECT md5('vehicle-publication:' || ranked.model_id::text)::uuid,
+           ranked.model_id,ranked.id,ranked.created_at
+    FROM (
+      SELECT v.*,row_number() OVER (
+        PARTITION BY v.model_id ORDER BY v.created_at,v.id
+      ) position
+      FROM vehicles v
+    ) ranked
+    WHERE ranked.position=1
+    ON CONFLICT(model_id) DO NOTHING
+  `);
   return created;
 }
 

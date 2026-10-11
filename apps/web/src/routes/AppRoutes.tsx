@@ -96,29 +96,6 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="proveedores"
-          element={
-            <AdminApiCollection
-              resource="suppliers"
-              title="Proveedores"
-              create
-            />
-          }
-        />
-        <Route
-          path="agencias"
-          element={<AdminApiCollection resource="depots" title="Agencias" />}
-        />
-        <Route
-          path="calificaciones"
-          element={
-            <AdminApiCollection
-              resource="depot-scores"
-              title="Calificaciones"
-            />
-          }
-        />
-        <Route
           path="pagos"
           element={<AdminApiCollection resource="payments" title="Pagos" />}
         />

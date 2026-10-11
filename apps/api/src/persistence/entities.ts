@@ -55,6 +55,15 @@ export const entities = [
     },
   }),
   new EntitySchema({
+    name: 'vehicle_model_categories',
+    tableName: 'vehicle_model_categories',
+    columns: {
+      model_id: { type: 'uuid', primary: true },
+      category_id: { type: 'uuid', primary: true },
+      created_at: { type: 'timestamptz', createDate: true },
+    },
+  }),
+  new EntitySchema({
     name: 'locations',
     tableName: 'locations',
     columns: {
@@ -248,6 +257,27 @@ export const entities = [
       vehicle_id: { type: 'uuid' },
       created_at: { type: 'timestamptz', createDate: true },
       updated_at: { type: 'timestamptz', updateDate: true },
+    },
+  }),
+  new EntitySchema({
+    name: 'vehicle_publications',
+    tableName: 'vehicle_publications',
+    columns: {
+      id: { type: 'uuid', primary: true },
+      model_id: { type: 'uuid', unique: true },
+      vehicle_id: { type: 'uuid', unique: true },
+      published_at: { type: 'timestamptz' },
+      created_at: { type: 'timestamptz', createDate: true },
+      updated_at: { type: 'timestamptz', updateDate: true },
+    },
+  }),
+  new EntitySchema({
+    name: 'vehicle_publication_views',
+    tableName: 'vehicle_publication_views',
+    columns: {
+      publication_id: { type: 'uuid', primary: true },
+      user_id: { type: 'uuid', primary: true },
+      viewed_at: { type: 'timestamptz', createDate: true },
     },
   }),
   new EntitySchema({

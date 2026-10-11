@@ -3,6 +3,7 @@ import { validateBackendEnvironment } from '../config/backend-environment';
 import { entities } from './entities';
 import { InitialSchema1790200000000 } from './migrations/1790200000000-initial-schema';
 import { MarketplaceV21790300000000 } from './migrations/1790300000000-marketplace-v2';
+import { VehicleCatalogIntegrity1790400000000 } from './migrations/1790400000000-vehicle-catalog-integrity';
 export function databaseOptions(): DataSourceOptions {
   validateBackendEnvironment(process.env);
   const port = Number(process.env.DB_PORT ?? 5432);
@@ -23,7 +24,11 @@ export function databaseOptions(): DataSourceOptions {
         }),
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,
     entities,
-    migrations: [InitialSchema1790200000000, MarketplaceV21790300000000],
+    migrations: [
+      InitialSchema1790200000000,
+      MarketplaceV21790300000000,
+      VehicleCatalogIntegrity1790400000000,
+    ],
     synchronize: false,
     logging: false,
   };

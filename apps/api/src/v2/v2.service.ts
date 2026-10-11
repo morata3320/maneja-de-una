@@ -232,7 +232,12 @@ export class V2Service {
       ? [limit, offset, `%${String(query.search)}%`]
       : [limit, offset];
     const rows = await this.db.query<Row[]>(
-      `SELECT * FROM ${c.table}${search} ORDER BY ${c.id} LIMIT $1 OFFSET $2`,
+      resource === 'vehicle-models'
+        ? `SELECT vm.*,MIN(vmc.category_id::text) category_id,COALESCE(array_agg(vmc.category_id::text) FILTER (WHERE vmc.category_id IS NOT NULL),'{}') category_ids
+           FROM vehicle_models vm LEFT JOIN vehicle_model_categories vmc ON vmc.model_id=vm.id
+           ${search ? 'WHERE vm.name ILIKE $3' : ''}
+           GROUP BY vm.id ORDER BY vm.id LIMIT $1 OFFSET $2`
+        : `SELECT * FROM ${c.table}${search} ORDER BY ${c.id} LIMIT $1 OFFSET $2`,
       args,
     );
     const [{ count }] = await this.db.query<Array<{ count: string }>>(
@@ -258,11 +263,44 @@ export class V2Service {
   ) {
     const c = this.catalogs[resource];
     if (!c) throw new NotFoundException();
-    const entries = Object.entries(body);
+    const categoryId =
+        resource === 'vehicle-models' && typeof body.categoryId === 'string'
+          ? body.categoryId
+          : undefined,
+      entries = Object.entries(body).filter(
+        ([key]) => !(resource === 'vehicle-models' && key === 'categoryId'),
+      );
     if (!entries.length) throw new BadRequestException('Body vacio');
-    for (const [k] of entries)
+    for (const [k] of Object.entries(body))
       if (!c.fields[k])
-        throw new BadRequestException(`Campo no permitido: ${k}`);
+        if (!(resource === 'vehicle-models' && k === 'categoryId'))
+          throw new BadRequestException(`Campo no permitido: ${k}`);
+    if (
+      resource === 'categories' &&
+      typeof body.name === 'string' &&
+      !['sedan', 'suv', 'compact'].includes(body.name.trim().toLowerCase())
+    )
+      throw new BadRequestException(
+        'Las categorías permitidas son Sedan, SUV y Compact.',
+      );
+    if (categoryId) {
+      const [category] = await this.db.query<Row[]>(
+        `SELECT id FROM categories
+         WHERE id::text=$1 AND active=true
+           AND lower(name) IN ('sedan','suv','compact')`,
+        [categoryId],
+      );
+      if (!category)
+        throw new BadRequestException('Categoría incompatible o inactiva.');
+    }
+    const attachCategory = async (model: Row) => {
+      if (!categoryId) return;
+      await this.db.query(
+        `INSERT INTO vehicle_model_categories(model_id,category_id)
+         VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [model.id, categoryId],
+      );
+    };
     const vals = entries.map(([, v]) => v),
       cols = entries.map(([k]) => c.fields[k]);
     try {
@@ -272,6 +310,7 @@ export class V2Service {
           [...vals, id],
         );
         if (!r) throw new NotFoundException();
+        await attachCategory(r);
         return expose(r);
       }
       if (resource === 'depot-scores') {
@@ -287,6 +326,7 @@ export class V2Service {
         `INSERT INTO ${c.table}(${allCols.join(',')}) VALUES(${allVals.map((_, i) => `$${i + 1}`).join(',')}) RETURNING *`,
         allVals,
       );
+      await attachCategory(r);
       return expose(r);
     } catch (e) {
       if ((e as { code?: string }).code?.startsWith('23'))
@@ -502,9 +542,13 @@ export class V2Service {
          AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$2 AND h.ends_at>$1)`
       : "sv.status='AVAILABLE'";
     const stockColumns = `,
+      vp.id publication_id,(vp.id=latest.id AND vp.vehicle_id=v.id) is_new,
       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active AND ${availableStock}) stock_available`;
-    const from = ` FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id WHERE ${where.join(' AND ')}`;
+    const from = ` FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id
+      LEFT JOIN vehicle_publications vp ON vp.model_id=v.model_id
+      LEFT JOIN LATERAL (SELECT id FROM vehicle_publications ORDER BY published_at DESC,id DESC LIMIT 1) latest ON true
+      WHERE ${where.join(' AND ')}`;
     const [{ count }] = await this.db.query<Array<{ count: string }>>(
       `SELECT count(*) count${from}`,
       values,
@@ -534,9 +578,13 @@ export class V2Service {
       : "sv.status='AVAILABLE'";
     const [row] = await this.db.query<Row[]>(
       `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier,
+       vp.id publication_id,(vp.id=latest.id AND vp.vehicle_id=v.id) is_new,
        (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
        (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active AND ${availableStock}) stock_available
-       FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id WHERE v.id::text=$1`,
+       FROM vehicles v JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id JOIN suppliers s ON s.id=v.supplier_id
+       LEFT JOIN vehicle_publications vp ON vp.model_id=v.model_id
+       LEFT JOIN LATERAL (SELECT id FROM vehicle_publications ORDER BY published_at DESC,id DESC LIMIT 1) latest ON true
+       WHERE v.id::text=$1`,
       values,
     );
     if (!row) throw new NotFoundException('Vehiculo no encontrado');
@@ -558,10 +606,188 @@ export class V2Service {
       },
     };
   }
+  async vehicleAvailability(id: string, query: Record<string, unknown>) {
+    if (typeof query.startDate !== 'string' || typeof query.endDate !== 'string')
+      throw new BadRequestException('startDate y endDate son obligatorios.');
+    const start = new Date(query.startDate),
+      end = new Date(query.endDate),
+      slotMinutes = Number(query.slotMinutes ?? 60);
+    if (
+      !Number.isFinite(start.valueOf()) ||
+      !Number.isFinite(end.valueOf()) ||
+      start >= end ||
+      end.valueOf() - start.valueOf() > 7 * 86400000 ||
+      ![30, 60].includes(slotMinutes)
+    )
+      throw new BadRequestException(
+        'Periodo inválido; usa intervalos de 30 o 60 minutos y máximo 7 días.',
+      );
+    const slots = await this.db.query<Row[]>(
+      `SELECT series.starts_at,
+              series.starts_at + ($4::int * interval '1 minute') ends_at,
+              (SELECT count(*)::int FROM vehicles sv
+               WHERE sv.model_id=template.model_id
+                 AND sv.supplier_id=template.supplier_id AND sv.active
+                 AND sv.status IN ('AVAILABLE','RESERVED')
+                 AND series.starts_at>=now()
+                 AND NOT EXISTS(
+                   SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id
+                    AND o.status IN ('PENDING','CONFIRMED')
+                    AND o.starts_at < series.starts_at + ($4::int * interval '1 minute')
+                    AND o.ends_at > series.starts_at
+                 )
+                 AND NOT EXISTS(
+                   SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id
+                    AND NOT h.consumed AND h.expires_at>now()
+                    AND h.starts_at < series.starts_at + ($4::int * interval '1 minute')
+                    AND h.ends_at > series.starts_at
+                 )) available_units
+       FROM (SELECT model_id,supplier_id FROM vehicles WHERE id::text=$1 AND active) template
+       CROSS JOIN LATERAL generate_series(
+         $2::timestamptz,
+         $3::timestamptz - ($4::int * interval '1 minute'),
+         $4::int * interval '1 minute'
+       ) series(starts_at)
+       ORDER BY series.starts_at`,
+      [id, start, end, slotMinutes],
+    );
+    if (!slots.length) {
+      const [vehicle] = await this.db.query<Row[]>(
+        'SELECT id FROM vehicles WHERE id::text=$1 AND active',
+        [id],
+      );
+      if (!vehicle) throw new NotFoundException('Vehículo no encontrado.');
+    }
+    return {
+      vehicleId: id,
+      slotMinutes,
+      slots: slots.map((slot) => ({
+        startsAt: slot.starts_at,
+        endsAt: slot.ends_at,
+        availableUnits: Number(slot.available_units),
+        available: Number(slot.available_units) > 0,
+      })),
+    };
+  }
+  async publicationViews(userId: string) {
+    const rows = await this.db.query<Array<{ publication_id: string }>>(
+      'SELECT publication_id FROM vehicle_publication_views WHERE user_id=$1',
+      [userId],
+    );
+    return { publicationIds: rows.map(({ publication_id }) => publication_id) };
+  }
+  async markPublicationViewed(userId: string, vehicleId: string) {
+    const result = await this.db.query<Array<{ publication_id: string }>>(
+      `INSERT INTO vehicle_publication_views(publication_id,user_id)
+       SELECT vp.id,$1 FROM vehicle_publications vp
+       JOIN vehicles v ON v.model_id=vp.model_id
+       WHERE v.id::text=$2
+       ON CONFLICT(publication_id,user_id)
+       DO UPDATE SET viewed_at=now()
+       RETURNING publication_id`,
+      [userId, vehicleId],
+    );
+    if (!result.length) throw new NotFoundException('Publicación no encontrada.');
+    return { publicationId: result[0].publication_id, viewed: true };
+  }
+  private async validateVehicleRelations(
+    manager: EntityManager,
+    input: Record<string, unknown>,
+    existing?: Row,
+  ) {
+    const brandId = scalarText(input.brandId ?? existing?.brand_id) ?? '',
+      modelId = scalarText(input.modelId ?? existing?.model_id) ?? '',
+      categoryId = scalarText(input.categoryId ?? existing?.category_id) ?? '',
+      locationId = scalarText(input.locationId ?? existing?.location_id) ?? '';
+    const [[brand], [model], [category], [location], compatibility] =
+      await Promise.all([
+        manager.query<Row[]>(
+          'SELECT id,active FROM brands WHERE id::text=$1',
+          [brandId],
+        ),
+        manager.query<Row[]>(
+          'SELECT id,brand_id,active FROM vehicle_models WHERE id::text=$1',
+          [modelId],
+        ),
+        manager.query<Row[]>(
+          'SELECT id,active FROM categories WHERE id::text=$1',
+          [categoryId],
+        ),
+        manager.query<Row[]>(
+          'SELECT id,active FROM locations WHERE id::text=$1',
+          [locationId],
+        ),
+        manager.query<Row[]>(
+          'SELECT 1 FROM vehicle_model_categories WHERE model_id::text=$1 AND category_id::text=$2',
+          [modelId, categoryId],
+        ),
+      ]);
+    if (!brand || brand.active !== true)
+      throw new BadRequestException('La marca seleccionada no existe o está inactiva.');
+    if (!model || model.active !== true)
+      throw new BadRequestException('El modelo seleccionado no existe o está inactivo.');
+    if (!category || category.active !== true)
+      throw new BadRequestException(
+        'La categoría seleccionada no existe o está inactiva.',
+      );
+    if (!location || location.active !== true)
+      throw new BadRequestException(
+        'La ubicación seleccionada no existe o está inactiva.',
+      );
+    if (String(model.brand_id) !== brandId)
+      throw new BadRequestException(
+        'El modelo seleccionado no corresponde a la marca.',
+      );
+    if (!compatibility.length)
+      throw new BadRequestException(
+        'El modelo seleccionado no es compatible con la categoría.',
+      );
+
+    const suppliedDepot = input.depotId,
+      suppliedSupplier = input.supplierId;
+    if ((suppliedDepot === undefined) !== (suppliedSupplier === undefined))
+      throw new BadRequestException(
+        'Proveedor y agencia deben enviarse juntos cuando se especifican.',
+      );
+    if (suppliedDepot !== undefined && suppliedSupplier !== undefined) {
+      const [validDepot] = await manager.query<Row[]>(
+        `SELECT d.id FROM depots d JOIN suppliers s ON s.id=d.supplier_id
+         WHERE d.id=$1 AND d.supplier_id=$2 AND d.location_id=$3
+           AND d.active=true AND s.active=true`,
+        [suppliedDepot, suppliedSupplier, locationId],
+      );
+      if (!validDepot)
+        throw new BadRequestException(
+          'La agencia no corresponde al proveedor y ubicación seleccionados.',
+        );
+      return;
+    }
+    const locationChanged = existing && String(existing.location_id) !== locationId;
+    if (existing && !locationChanged) {
+      input.supplierId = existing.supplier_id;
+      input.depotId = existing.depot_id;
+      return;
+    }
+    const [depot] = await manager.query<Row[]>(
+      `SELECT d.id,d.supplier_id FROM depots d
+       JOIN suppliers s ON s.id=d.supplier_id
+       JOIN locations l ON l.id=d.location_id
+       WHERE d.location_id=$1 AND d.active=true AND s.active=true AND l.active=true
+       ORDER BY d.id LIMIT 1`,
+      [locationId],
+    );
+    if (!depot)
+      throw new BadRequestException(
+        'No existe una agencia operativa configurada para la ubicación.',
+      );
+    input.supplierId = depot.supplier_id;
+    input.depotId = depot.id;
+  }
   private async adjustVehicleStock(
     manager: EntityManager,
     template: Row,
     quantity: number,
+    suppliedPlates: string[],
   ) {
     const modelId = String(template.model_id),
       templateId = String(template.id);
@@ -613,18 +839,22 @@ export class V2Service {
       );
       add -= inactive.length;
     }
-    for (let index = 0; index < add; index++) {
-      let licensePlate = '';
-      do {
-        licensePlate = `STK-${randomBytes(4).toString('hex').toUpperCase()}`;
-      } while (
+    if (suppliedPlates.length !== add)
+      throw new BadRequestException(
+        `Debes ingresar ${add} placa${add === 1 ? '' : 's'} real${add === 1 ? '' : 'es'} para las unidades nuevas.`,
+      );
+    if (new Set(suppliedPlates).size !== suppliedPlates.length)
+      throw new ConflictException('Las placas de las unidades deben ser únicas.');
+    for (const licensePlate of suppliedPlates) {
+      if (
         (
           await manager.query<Row[]>(
-            'SELECT id FROM vehicles WHERE license_plate=$1',
+            'SELECT id FROM vehicles WHERE upper(license_plate)=upper($1)',
             [licensePlate],
           )
         ).length
-      );
+      )
+        throw new ConflictException(`La placa ${licensePlate} ya está registrada.`);
       await manager.query(
         `INSERT INTO vehicles(id,brand_id,model_id,category_id,location_id,supplier_id,depot_id,year,color,license_plate,transmission,fuel_type,seats,doors,bag_capacity,price_per_day,mileage,description,status,active)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'AVAILABLE',true)`,
@@ -674,15 +904,14 @@ export class V2Service {
       active: 'active',
     };
     const quantity = body.quantity,
+      additionalLicensePlates = body.additionalLicensePlates ?? [],
       input = Object.fromEntries(Object.entries(body));
     delete input.quantity;
+    delete input.additionalLicensePlates;
     if (!id && quantity === 0) {
       input.active = false;
       input.status = 'INACTIVE';
     }
-    const entries = Object.entries(input).filter(([, v]) => v !== undefined),
-      values = entries.map(([, v]) => v),
-      cols = entries.map(([k]) => map[k]);
     try {
       const vehicleId = await this.db.transaction(async (manager) => {
         let row: Row;
@@ -711,6 +940,12 @@ export class V2Service {
             [id],
           );
           if (!existing) throw new NotFoundException();
+          await this.validateVehicleRelations(manager, input, existing);
+          const entries = Object.entries(input).filter(
+              ([, value]) => value !== undefined,
+            ),
+            values = entries.map(([, value]) => value),
+            cols = entries.map(([key]) => map[key]);
           if (entries.length) {
             await manager.query(
               `UPDATE vehicles SET ${cols.map((c, i) => `${c}=$${i + 1}`).join(',')},updated_at=now() WHERE id::text=$${values.length + 1}`,
@@ -722,6 +957,12 @@ export class V2Service {
             );
           } else row = existing;
         } else {
+          await this.validateVehicleRelations(manager, input);
+          const entries = Object.entries(input).filter(
+              ([, value]) => value !== undefined,
+            ),
+            values = entries.map(([, value]) => value),
+            cols = entries.map(([key]) => map[key]);
           const newId = randomUUID();
           const [created] = await manager.query<Row[]>(
             `INSERT INTO vehicles(id,${cols.join(',')}) VALUES($1,${values.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
@@ -729,14 +970,26 @@ export class V2Service {
           );
           row = created;
         }
+        await manager.query(
+          `INSERT INTO vehicle_publications(id,model_id,vehicle_id,published_at)
+           VALUES($1,$2,$3,now()) ON CONFLICT(model_id) DO NOTHING`,
+          [randomUUID(), row.model_id, row.id],
+        );
         if (quantity !== undefined)
-          await this.adjustVehicleStock(manager, row, quantity);
+          await this.adjustVehicleStock(
+            manager,
+            row,
+            quantity,
+            additionalLicensePlates,
+          );
         return String(row.id);
       });
       return this.vehicle(vehicleId);
     } catch (e) {
+      if ((e as { code?: string }).code === '23505')
+        throw new ConflictException('La placa ya está registrada.');
       if ((e as { code?: string }).code?.startsWith('23'))
-        throw new ConflictException('Conflicto de integridad');
+        throw new ConflictException('Conflicto de integridad.');
       throw e;
     }
   }
@@ -797,14 +1050,34 @@ export class V2Service {
     )
       throw new BadRequestException('Fechas inválidas o pasadas');
     return this.db.transaction(async (m) => {
-      await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        body.vehicleId,
-      ]);
-      const [v] = await m.query<Row[]>(
-        "SELECT * FROM vehicles WHERE id=$1 AND active AND status IN ('AVAILABLE','RESERVED') FOR UPDATE",
+      const [requested] = await m.query<Row[]>(
+        'SELECT * FROM vehicles WHERE id=$1 AND active',
         [body.vehicleId],
       );
-      if (!v) throw new NotFoundException('Vehiculo no encontrado');
+      if (!requested) throw new NotFoundException('Vehiculo no encontrado');
+      await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `vehicle-booking:${String(requested.model_id)}`,
+      ]);
+      const [v] = await m.query<Row[]>(
+        `SELECT v.* FROM vehicles v
+         WHERE v.model_id=$1 AND v.supplier_id=$2 AND v.active
+           AND v.status IN ('AVAILABLE','RESERVED')
+           AND NOT EXISTS(
+             SELECT 1 FROM orders o WHERE o.vehicle_id=v.id
+              AND o.status IN ('PENDING','CONFIRMED')
+              AND o.starts_at<$4 AND o.ends_at>$3
+           )
+           AND NOT EXISTS(
+             SELECT 1 FROM holds h WHERE h.vehicle_id=v.id
+              AND NOT h.consumed AND h.expires_at>now()
+              AND h.starts_at<$4 AND h.ends_at>$3
+           )
+         ORDER BY CASE WHEN v.id=$5 THEN 0 ELSE 1 END,v.created_at,v.id
+         FOR UPDATE SKIP LOCKED LIMIT 1`,
+        [requested.model_id, requested.supplier_id, start, end, body.vehicleId],
+      );
+      if (!v)
+        throw new ConflictException('Vehiculo no disponible en esas fechas');
       const depotId = body.pickupDepotId ?? Number(v.depot_id);
       const [depot] = await m.query<Row[]>(
         `SELECT d.id,d.name,d.location_id,l.name location_name
@@ -816,13 +1089,6 @@ export class V2Service {
         throw new BadRequestException(
           'El lugar de recogida no está disponible para este vehículo',
         );
-      const overlap = await m.query<Row[]>(
-        `SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2
-         UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
-        [body.vehicleId, start, end],
-      );
-      if (overlap.length)
-        throw new ConflictException('Vehiculo no disponible en esas fechas');
       const days = Math.ceil((end.valueOf() - start.valueOf()) / 86400000),
         total = Number(v.price_per_day) * days,
         id = randomUUID();
@@ -830,7 +1096,7 @@ export class V2Service {
         `INSERT INTO orders(id,vehicle_id,owner_id,preview_id,locator,status,route,starts_at,ends_at,price_per_day,total_amount,currency,extras,vehicle_details,driver_details,payment_reference) VALUES($1,$2,$3,NULL,$4,'PENDING',$5,$6,$7,$8,$9,'USD',$10,$11,$12,NULL) RETURNING *`,
         [
           id,
-          body.vehicleId,
+          v.id,
           userId,
           `MDU-${randomBytes(4).toString('hex').toUpperCase()}`,
           {

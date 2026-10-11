@@ -83,8 +83,8 @@ export function Checkout() {
         url: "/reservations",
         data: {
           vehicleId,
-          startDate,
-          endDate,
+          startDate: new Date(startDate).toISOString(),
+          endDate: new Date(endDate).toISOString(),
           pickupDepotId: Number(pickupDepotId),
           driver: { firstName, lastName, cedula, phone },
         },
@@ -167,7 +167,7 @@ export function Checkout() {
             >
               <Input
                 label="Recogida"
-                type="date"
+                type="datetime-local"
                 value={startDate}
                 onChange={(e) => setStart(e.target.value)}
                 required
@@ -187,7 +187,7 @@ export function Checkout() {
               </Select>
               <Input
                 label="Devolucion"
-                type="date"
+                type="datetime-local"
                 min={startDate}
                 value={endDate}
                 onChange={(e) => setEnd(e.target.value)}

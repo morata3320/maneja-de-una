@@ -27,6 +27,8 @@ type Field = {
   min?: number;
   max?: number;
   integer?: boolean;
+  placeholder?: string;
+  help?: string;
 };
 const yesNo: Option[] = [
   { value: "true", label: "Activo" },
@@ -45,7 +47,6 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
   "vehicle-models": {
     columns: ["name", "brandId", "active"],
     fields: [
-      { key: "name", label: "Modelo", required: true },
       {
         key: "brandId",
         label: "Marca",
@@ -53,6 +54,14 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         relation: "brands",
         required: true,
       },
+      {
+        key: "categoryId",
+        label: "Categoría compatible",
+        type: "select",
+        relation: "categories",
+        required: true,
+      },
+      { key: "name", label: "Modelo", required: true },
       { key: "active", label: "Estado", type: "select", options: yesNo },
     ],
   },
@@ -164,7 +173,6 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
       "model",
       "category",
       "location",
-      "supplier",
       "licensePlate",
       "pricePerDay",
       "stockTotal",
@@ -180,17 +188,17 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         required: true,
       },
       {
-        key: "modelId",
-        label: "Modelo",
-        type: "select",
-        relation: "vehicle-models",
-        required: true,
-      },
-      {
         key: "categoryId",
         label: "Categoría",
         type: "select",
         relation: "categories",
+        required: true,
+      },
+      {
+        key: "modelId",
+        label: "Modelo",
+        type: "select",
+        relation: "vehicle-models",
         required: true,
       },
       {
@@ -201,22 +209,25 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         required: true,
       },
       {
-        key: "supplierId",
-        label: "Proveedor",
-        type: "select",
-        relation: "suppliers",
+        key: "year",
+        label: "Año",
+        type: "number",
+        min: 1886,
         required: true,
+        placeholder: "2023",
       },
       {
-        key: "depotId",
-        label: "Agencia",
-        type: "select",
-        relation: "depots",
+        key: "color",
+        label: "Color",
         required: true,
+        placeholder: "Gris metálico",
       },
-      { key: "year", label: "Año", type: "number", min: 1886, required: true },
-      { key: "color", label: "Color", required: true },
-      { key: "licensePlate", label: "Placa", required: true },
+      {
+        key: "licensePlate",
+        label: "Placa",
+        required: true,
+        placeholder: "PBC-1234",
+      },
       {
         key: "transmission",
         label: "Transmisión",
@@ -237,6 +248,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 1,
         required: true,
+        placeholder: "5",
       },
       {
         key: "doors",
@@ -244,6 +256,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 1,
         required: true,
+        placeholder: "4",
       },
       {
         key: "bagCapacity",
@@ -253,6 +266,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         max: 1000,
         integer: true,
         required: true,
+        placeholder: "2",
       },
       {
         key: "pricePerDay",
@@ -260,6 +274,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0.01,
         required: true,
+        placeholder: "45.00",
       },
       {
         key: "mileage",
@@ -267,6 +282,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0,
         required: true,
+        placeholder: "25000",
       },
       {
         key: "quantity",
@@ -274,11 +290,23 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0,
         required: true,
+        placeholder: "3",
       },
-      { key: "description", label: "Descripción", required: true },
+      {
+        key: "additionalLicensePlates",
+        label: "Placas de unidades nuevas",
+        placeholder: "PBC-1235, PBC-1236",
+        help: "Solo al aumentar el stock: una placa real y única por unidad nueva.",
+      },
+      {
+        key: "description",
+        label: "Descripción",
+        required: true,
+        placeholder: "Vehículo cómodo para viajes familiares",
+      },
       {
         key: "status",
-        label: "Estado",
+        label: "Estado operativo",
         type: "select",
         options: choices([
           "AVAILABLE",
@@ -288,8 +316,16 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
           "INACTIVE",
         ]),
         required: true,
+        help: "Condición funcional; una reserva no cambia permanentemente este estado.",
       },
-      { key: "active", label: "Activo", type: "select", options: yesNo },
+      {
+        key: "active",
+        label: "Publicación / habilitación",
+        type: "select",
+        options: yesNo,
+        required: true,
+        help: "Una unidad inactiva no se publica ni puede reservarse.",
+      },
     ],
   },
 };
@@ -336,17 +372,24 @@ const tableCell = (resource: string, row: Row, column: string) => {
     typeof row.model === "string"
   )
     return (
-      <img
-        className="admin-vehicle-image"
-        src={getVehicleImage(row.brand, row.model)}
-        alt={`${row.brand} ${row.model}`}
-        loading="lazy"
-        onError={(event) => {
-          const fallback = getVehiclePlaceholder("Sedan");
-          if (event.currentTarget.src.endsWith(fallback)) return;
-          event.currentTarget.src = fallback;
-        }}
-      />
+      <div className="admin-vehicle-preview">
+        {row.isNew === true && (
+          <span className="admin-new-badge" aria-label="Publicación más reciente">
+            ★ Nuevo
+          </span>
+        )}
+        <img
+          className="admin-vehicle-image"
+          src={getVehicleImage(row.brand, row.model)}
+          alt={`${row.brand} ${row.model}`}
+          loading="lazy"
+          onError={(event) => {
+            const fallback = getVehiclePlaceholder("Sedan");
+            if (event.currentTarget.src.endsWith(fallback)) return;
+            event.currentTarget.src = fallback;
+          }}
+        />
+      </div>
     );
   return display(row[column]);
 };
@@ -356,6 +399,11 @@ function useCollection(url: string) {
   const [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const load = useCallback(async () => {
+    if (!url) {
+      setResult({ data: [], total: 0 });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -433,22 +481,44 @@ function RelationSelect({
   field,
   value,
   onChange,
+  rows,
+  error,
+  isOptionDisabled,
 }: {
   field: Field;
   value: string;
   onChange: (value: string) => void;
+  rows?: Row[];
+  error?: string;
+  isOptionDisabled?: (row: Row) => boolean;
 }) {
-  const { data } = useCollection(`/${field.relation}?page=1&limit=100`);
+  const { data: fetched } = useCollection(
+    rows ? "" : `/${field.relation}?page=1&limit=100`,
+  );
+  const data = rows ?? fetched;
+  const placeholder =
+    field.key === "brandId"
+      ? "Selecciona una marca"
+      : field.key === "categoryId"
+        ? "Selecciona una categoría"
+        : field.key === "modelId"
+          ? "Selecciona un modelo"
+          : "Selecciona una ubicación";
   return (
     <Select
       label={field.label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       required={field.required}
+      error={error}
     >
-      <option value="">Selecciona…</option>
+      <option value="">{placeholder}</option>
       {data.map((row) => (
-        <option key={idOf(row)} value={idOf(row)}>
+        <option
+          key={idOf(row)}
+          value={idOf(row)}
+          disabled={isOptionDisabled?.(row)}
+        >
           {display(row.name ?? row.airport ?? row.depotId)}
         </option>
       ))}
@@ -470,7 +540,20 @@ function ResourceForm({
   const config = configurations[resource];
   const [values, setValues] = useState<Record<string, string>>({}),
     [saving, setSaving] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [errors, setErrors] = useState<Record<string, string>>({});
+  const brandRows = useCollection(
+      resource === "vehicles" ? "/brands?page=1&limit=100" : "",
+    ).data,
+    categoryRows = useCollection(
+      resource === "vehicles" ? "/categories?page=1&limit=100" : "",
+    ).data,
+    modelRows = useCollection(
+      resource === "vehicles" ? "/vehicle-models?page=1&limit=100" : "",
+    ).data,
+    locationRows = useCollection(
+      resource === "vehicles" ? "/locations?page=1&limit=100" : "",
+    ).data;
   useEffect(() => {
     const next: Record<string, string> = {};
     for (const field of config.fields)
@@ -482,10 +565,63 @@ function ResourceForm({
           : String(row[field.key]);
     setValues(next);
   }, [config.fields, row]);
-  const change = (key: string, value: string) =>
+  const compatibleModel = useCallback(
+    (model: Row) =>
+      String(model.brandId) === values.brandId &&
+      Array.isArray(model.categoryIds) &&
+      model.categoryIds.map(String).includes(values.categoryId),
+    [values.brandId, values.categoryId],
+  );
+  useEffect(() => {
+    if (!values.modelId || !modelRows.length) return;
+    const selected = modelRows.find(
+      (model) => idOf(model) === values.modelId,
+    );
+    if (selected && !compatibleModel(selected))
+      setValues((current) => ({ ...current, modelId: "" }));
+  }, [compatibleModel, modelRows, values.modelId]);
+  const change = (key: string, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: "" }));
+  };
+  function validate() {
+    const next: Record<string, string> = {};
+    for (const field of config.fields) {
+      const value = values[field.key]?.trim();
+      if (field.required && !value)
+        next[field.key] =
+          field.type === "select" || field.relation
+            ? `Debes seleccionar ${field.label.toLowerCase()}.`
+            : `${field.label} es obligatorio.`;
+      if (value && field.type === "number") {
+        const number = Number(value);
+        if (!Number.isFinite(number))
+          next[field.key] = "Ingresa un número válido.";
+        else if (field.min !== undefined && number < field.min)
+          next[field.key] =
+            field.key === "pricePerDay"
+              ? "El precio debe ser mayor que cero."
+              : `${field.label} debe ser al menos ${field.min}.`;
+        else if (field.integer && !Number.isInteger(number))
+          next[field.key] = `${field.label} debe ser un número entero.`;
+      }
+    }
+    if (resource === "vehicles" && values.modelId) {
+      const selected = modelRows.find(
+        (model) => idOf(model) === values.modelId,
+      );
+      if (selected && String(selected.brandId) !== values.brandId)
+        next.modelId = "El modelo seleccionado no corresponde a la marca.";
+      else if (selected && !compatibleModel(selected))
+        next.modelId =
+          "El modelo seleccionado no es compatible con la categoría.";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (!validate()) return;
     setSaving(true);
     setError("");
     const data: Row = {};
@@ -494,7 +630,12 @@ function ResourceForm({
       if (field.key === "password" && row && !value) continue;
       if (value === "" && !field.required) continue;
       data[field.key] =
-        field.type === "number"
+        field.key === "additionalLicensePlates"
+          ? value
+              .split(",")
+              .map((plate) => plate.trim().toUpperCase())
+              .filter(Boolean)
+          : field.type === "number"
           ? Number(value)
           : field.key === "active"
             ? value === "true"
@@ -525,6 +666,23 @@ function ResourceForm({
             field={field}
             value={values[field.key] ?? ""}
             onChange={(value) => change(field.key, value)}
+            rows={
+              resource !== "vehicles"
+                ? undefined
+                : field.key === "brandId"
+                  ? brandRows
+                  : field.key === "categoryId"
+                    ? categoryRows
+                    : field.key === "modelId"
+                      ? modelRows
+                      : locationRows
+            }
+            error={errors[field.key]}
+            isOptionDisabled={
+              resource === "vehicles" && field.key === "modelId"
+                ? (model) => !compatibleModel(model)
+                : undefined
+            }
           />
         ) : field.type === "select" ? (
           <Select
@@ -533,8 +691,14 @@ function ResourceForm({
             value={values[field.key] ?? ""}
             onChange={(e) => change(field.key, e.target.value)}
             required={field.required}
+            error={errors[field.key]}
+            help={field.help}
           >
-            <option value="">Selecciona…</option>
+            <option value="">
+              {field.key === "status"
+                ? "Selecciona un estado"
+                : "Selecciona una opción"}
+            </option>
             {field.options?.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -552,6 +716,9 @@ function ResourceForm({
             min={field.min}
             max={field.max}
             step={field.type === "number" ? (field.integer ? 1 : "any") : undefined}
+            placeholder={field.placeholder}
+            error={errors[field.key]}
+            help={field.help}
           />
         ),
       )}
@@ -615,7 +782,9 @@ function CrudCollection({
         title={title}
         description="Gestión conectada a API V2."
         action={
-          <Button onClick={() => setEditing(null)}>Nuevo registro</Button>
+          resource === "categories" ? undefined : (
+            <Button onClick={() => setEditing(null)}>Nuevo registro</Button>
+          )
         }
       />
       <Card>

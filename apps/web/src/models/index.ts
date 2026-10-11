@@ -32,7 +32,20 @@ export interface ApiVehicle {
   quantity: number;
   stockTotal: number;
   stockAvailable: number;
+  publicationId?: string | null;
+  isNew?: boolean;
   pickupDepots?: PickupDepot[];
+}
+export interface AvailabilitySlot {
+  startsAt: string;
+  endsAt: string;
+  availableUnits: number;
+  available: boolean;
+}
+export interface VehicleAvailability {
+  vehicleId: string;
+  slotMinutes: number;
+  slots: AvailabilitySlot[];
 }
 export interface PickupDepot {
   id: number;

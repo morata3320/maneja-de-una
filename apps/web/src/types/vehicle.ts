@@ -21,5 +21,7 @@ export interface Vehicle {
   quantity: number;
   stockTotal: number;
   stockAvailable: number;
+  publicationId: string | null;
+  isNew: boolean;
   pickupDepots: import("../models").PickupDepot[];
 }

@@ -18,26 +18,80 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 import { useExperience } from "../components/LocalExperience";
+import { api } from "../services/apiClient";
+import type { VehicleAvailability } from "../models";
+
+const localDateTime = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.valueOf() - offset).toISOString().slice(0, 16);
+};
+const initialDates = () => {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(9, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 3);
+  return [localDateTime(start), localDateTime(end)] as const;
+};
 export function VehicleDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [start, setStart] = useState("2026-10-12");
-  const [end, setEnd] = useState("2026-10-15");
+  const [defaults] = useState(initialDates);
+  const [start, setStart] = useState(defaults[0]);
+  const [end, setEnd] = useState(defaults[1]);
+  const [slots, setSlots] = useState<VehicleAvailability["slots"]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState("");
   const availabilityQuery =
-    start && end
-      ? `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
+    start && end && Number.isFinite(Date.parse(start)) && Number.isFinite(Date.parse(end))
+      ? `?startDate=${encodeURIComponent(new Date(start).toISOString())}&endDate=${encodeURIComponent(new Date(end).toISOString())}`
       : "";
   const { vehicle, loading } = useVehicleController(id, availabilityQuery);
   const { vehicles } = useVehiclesController("?limit=3");
   const [angle, setAngle] = useState(0);
   const [open, setOpen] = useState(false);
   const [pickupDepotId, setPickupDepotId] = useState("");
-  const { favorites, comparison, toggleFavorite, toggleCompare } =
-    useExperience();
+  const {
+    favorites,
+    comparison,
+    toggleFavorite,
+    toggleCompare,
+    markPublicationViewed,
+  } = useExperience();
   useEffect(() => {
     if (vehicle?.pickupDepots.length && !pickupDepotId)
       setPickupDepotId(String(vehicle.pickupDepots[0].id));
   }, [vehicle, pickupDepotId]);
+  useEffect(() => {
+    if (vehicle?.publicationId)
+      markPublicationViewed(vehicle.id, vehicle.publicationId);
+  }, [markPublicationViewed, vehicle]);
+  useEffect(() => {
+    if (!id || !start) return;
+    const day = start.slice(0, 10),
+      rangeStart = new Date(`${day}T00:00:00`),
+      rangeEnd = new Date(rangeStart);
+    if (!Number.isFinite(rangeStart.valueOf())) return;
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+    const controller = new AbortController();
+    setSlotsLoading(true);
+    setSlotsError("");
+    api<VehicleAvailability>({
+      url: `/vehicles/${id}/availability?startDate=${encodeURIComponent(rangeStart.toISOString())}&endDate=${encodeURIComponent(rangeEnd.toISOString())}&slotMinutes=60`,
+      signal: controller.signal,
+    })
+      .then((result) => setSlots(result.slots))
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setSlotsError(
+            reason instanceof Error
+              ? reason.message
+              : "No fue posible consultar los horarios.",
+          );
+      })
+      .finally(() => setSlotsLoading(false));
+    return () => controller.abort();
+  }, [id, start]);
   if (loading)
     return (
       <p className="container section" role="status">
@@ -206,19 +260,70 @@ export function VehicleDetail() {
             </Select>
             <Input
               label="Recogida"
-              type="date"
+              type="datetime-local"
               value={start}
               required
               onChange={(e) => setStart(e.target.value)}
             />
             <Input
               label="Devolución"
-              type="date"
+              type="datetime-local"
               min={start}
               value={end}
               required
               onChange={(e) => setEnd(e.target.value)}
             />
+            <fieldset className="availability-panel">
+              <legend>Horarios del {start.slice(0, 10)}</legend>
+              {slotsLoading ? (
+                <p role="status">Consultando disponibilidad real…</p>
+              ) : slotsError ? (
+                <p className="form-error" role="alert">
+                  {slotsError}
+                </p>
+              ) : (
+                <div className="availability-grid">
+                  {slots.map((slot) => {
+                    const slotStart = new Date(slot.startsAt),
+                      slotEnd = new Date(slot.endsAt),
+                      selected =
+                        slotStart.valueOf() >= Date.parse(start) &&
+                        slotEnd.valueOf() <= Date.parse(end);
+                    return (
+                      <button
+                        key={slot.startsAt}
+                        type="button"
+                        disabled={!slot.available}
+                        className={selected ? "selected" : ""}
+                        onClick={() => {
+                          const nextStart = localDateTime(slotStart);
+                          setStart(nextStart);
+                          if (Date.parse(end) <= slotStart.valueOf())
+                            setEnd(localDateTime(slotEnd));
+                        }}
+                      >
+                        <strong>
+                          {slotStart.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          –
+                          {slotEnd.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </strong>
+                        <span>
+                          {slot.available
+                            ? `${slot.availableUnits} disponible${slot.availableUnits === 1 ? "" : "s"}`
+                            : "Ocupado"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </fieldset>
             <div className="price-summary">
               <span>
                 ${vehicle.pricePerDay} × {valid ? days : "—"} días

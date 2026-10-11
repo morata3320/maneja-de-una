@@ -12,9 +12,6 @@ const adminLinks = [
   ["/admin/modelos", "Modelos", "grid"],
   ["/admin/categorias", "Categorías", "grid"],
   ["/admin/ubicaciones", "Ubicaciones", "pin"],
-  ["/admin/proveedores", "Proveedores", "users"],
-  ["/admin/agencias", "Agencias", "pin"],
-  ["/admin/calificaciones", "Calificaciones", "grid"],
   ["/admin/clientes", "Clientes", "users"],
   ["/admin/reservas", "Reservas", "calendar"],
   ["/admin/pagos", "Pagos", "shield"],
@@ -22,10 +19,12 @@ const adminLinks = [
 
 export function AdminLayout() {
   const [open, setOpen] = useState(false),
+    [userMenuOpen, setUserMenuOpen] = useState(false),
     { pathname } = useLocation();
   const { user, loading, logout } = useAuth();
   useEffect(() => {
     setOpen(false);
+    setUserMenuOpen(false);
     window.scrollTo(0, 0);
   }, [pathname]);
   if (loading)
@@ -78,11 +77,31 @@ export function AdminLayout() {
           </div>
           <div>
             <ThemeToggle />
-            <span className="avatar">{initials}</span>
-            <span className="admin-user">
-              {`${user.firstName ?? "Admin"} ${user.lastName ?? ""}`}
-              <small>{user.email ?? "Administradora"}</small>
-            </span>
+            <div className="admin-user-menu">
+              <button
+                type="button"
+                className="admin-user-trigger"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                onClick={() => setUserMenuOpen((value) => !value)}
+              >
+                <span className="avatar">{initials}</span>
+                <span className="admin-user">
+                  {`${user.firstName ?? "Admin"} ${user.lastName ?? ""}`}
+                  <small>{user.email ?? "Administradora"}</small>
+                </span>
+                <Icon name="chevron" size={14} />
+              </button>
+              {userMenuOpen && (
+                <div className="admin-user-popover" role="menu">
+                  <strong>{user.email}</strong>
+                  <span>Rol ADMIN</span>
+                  <Link to="/login" onClick={logout} role="menuitem">
+                    <Icon name="logout" size={16} /> Cerrar sesión
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main id="contenido" className="admin-content">

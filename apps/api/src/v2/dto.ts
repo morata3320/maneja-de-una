@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsInt,
@@ -81,8 +84,8 @@ export class VehicleDto {
   @IsUUID() modelId: string;
   @IsUUID() categoryId: string;
   @IsUUID() locationId: string;
-  @Type(() => Number) @IsInt() @Min(1) supplierId: number;
-  @Type(() => Number) @IsInt() @Min(1) depotId: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) supplierId?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) depotId?: number;
   @Type(() => Number)
   @IsInt()
   @Min(1886)
@@ -101,10 +104,10 @@ export class VehicleDto {
   @Max(10000)
   pricePerDay: number;
   @Type(() => Number) @IsInt() @Min(0) mileage: number;
-  @Trim() @MaxLength(2000) description: string;
+  @Trim() @Length(1, 2000) description: string;
   @IsEnum(['AVAILABLE', 'RESERVED', 'RENTED', 'MAINTENANCE', 'INACTIVE'])
   status: string;
-  @IsOptional() active?: boolean;
+  @IsBoolean() active: boolean;
   @ApiPropertyOptional({
     minimum: 0,
     maximum: 1000,
@@ -117,12 +120,36 @@ export class VehicleDto {
   @Min(0)
   @Max(1000)
   quantity?: number;
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: 1000,
+    description:
+      'Placas reales para las unidades nuevas requeridas al incrementar stock.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((plate) =>
+          typeof plate === 'string' ? plate.trim().toUpperCase() : plate,
+        )
+      : value,
+  )
+  @Matches(/^[A-Z0-9-]{5,12}$/, { each: true })
+  additionalLicensePlates?: string[];
 }
 export class VehiclePatchDto extends PartialType(VehicleDto) {}
 export class VehicleStockDto {
   @ApiProperty({ minimum: 0 }) quantity: number;
   @ApiProperty({ minimum: 0 }) stockTotal: number;
   @ApiProperty({ minimum: 0 }) stockAvailable: number;
+}
+export class AvailabilitySlotDto {
+  @ApiProperty({ format: 'date-time' }) startsAt: string;
+  @ApiProperty({ format: 'date-time' }) endsAt: string;
+  @ApiProperty({ minimum: 0 }) availableUnits: number;
+  @ApiProperty() available: boolean;
 }
 export class ReservationDto {
   @IsUUID() vehicleId: string;

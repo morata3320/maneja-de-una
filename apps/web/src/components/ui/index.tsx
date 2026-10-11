@@ -40,28 +40,69 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
 }
 export function Input({
   label,
+  error,
+  help,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  error?: string;
+  help?: string;
+}) {
   const id = useId();
+  const descriptionId = `${id}-description`;
   return (
     <label className="field" htmlFor={id}>
       <span>{label}</span>
-      <input id={id} {...props} />
+      <input
+        id={id}
+        aria-invalid={!!error}
+        aria-describedby={error || help ? descriptionId : undefined}
+        {...props}
+      />
+      {(error || help) && (
+        <small
+          id={descriptionId}
+          className={error ? "field-error" : "field-help"}
+        >
+          {error || help}
+        </small>
+      )}
     </label>
   );
 }
 export function Select({
   label,
   children,
+  error,
+  help,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  error?: string;
+  help?: string;
+}) {
   const id = useId();
+  const descriptionId = `${id}-description`;
   return (
     <label className="field" htmlFor={id}>
       <span>{label}</span>
-      <select id={id} aria-label={label} {...props}>
+      <select
+        id={id}
+        aria-label={label}
+        aria-invalid={!!error}
+        aria-describedby={error || help ? descriptionId : undefined}
+        {...props}
+      >
         {children}
       </select>
+      {(error || help) && (
+        <small
+          id={descriptionId}
+          className={error ? "field-error" : "field-help"}
+        >
+          {error || help}
+        </small>
+      )}
     </label>
   );
 }

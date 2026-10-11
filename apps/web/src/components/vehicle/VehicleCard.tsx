@@ -33,12 +33,22 @@ export function VehicleArt({
   );
 }
 export function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
-  const { favorites, comparison, toggleFavorite, toggleCompare } =
-    useExperience();
+  const {
+    favorites,
+    comparison,
+    toggleFavorite,
+    toggleCompare,
+    isPublicationViewed,
+  } = useExperience();
   const saved = favorites.includes(vehicle.id);
   return (
     <article className="vehicle-card">
       <div className="vehicle-cover">
+        {vehicle.isNew && !isPublicationViewed(vehicle.publicationId) && (
+          <span className="new-vehicle-badge" aria-label="Publicación nueva">
+            <Icon name="star" size={13} /> Nuevo
+          </span>
+        )}
         <Link
           to={`/vehiculos/${vehicle.id}`}
           aria-label={`Ver ${vehicle.brand} ${vehicle.model}`}

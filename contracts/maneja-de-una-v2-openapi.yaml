@@ -31,6 +31,31 @@ paths:
   /users/{id}/status: { patch: { tags: [Users], security: [bearerAuth: []], parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { description: OK } } } }
   /vehicles: { get: { tags: [Vehicles], parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }], responses: { '200': { description: OK } } }, post: { tags: [Vehicles], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
   /vehicles/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Vehicles], responses: { '200': { description: OK } } }, put: { tags: [Vehicles], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Vehicles], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Vehicles], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
+  /vehicles/{id}/availability:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Vehicles]
+      summary: Disponibilidad horaria real para las unidades del modelo
+      parameters:
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: slotMinutes, in: query, schema: { type: integer, enum: [30, 60], default: 60 } }
+      responses:
+        '200': { description: Intervalos con cantidad disponible }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /vehicles/{id}/view:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Vehicles]
+      security: [bearerAuth: []]
+      summary: Registra que el usuario revisó la publicación
+      responses: { '200': { description: Viewed }, '401': { description: Unauthorized } }
+  /vehicles/publication-views/me:
+    get:
+      tags: [Vehicles]
+      security: [bearerAuth: []]
+      summary: Publicaciones revisadas por el usuario actual
+      responses: { '200': { description: OK }, '401': { description: Unauthorized } }
   /brands: { get: { tags: [Brands], responses: { '200': { description: OK } } }, post: { tags: [Brands], security: [bearerAuth: []], responses: { '201': { description: Created } } } }
   /brands/{id}: { parameters: [{ $ref: '#/components/parameters/Id' }], get: { tags: [Brands], responses: { '200': { description: OK } } }, put: { tags: [Brands], security: [bearerAuth: []], responses: { '200': { description: OK } } }, patch: { tags: [Brands], security: [bearerAuth: []], responses: { '200': { description: OK } } }, delete: { tags: [Brands], security: [bearerAuth: []], responses: { '204': { description: No Content } } } }
   /vehicle-models: { get: { tags: [Vehicle Models], responses: { '200': { description: OK } } }, post: { tags: [Vehicle Models], security: [bearerAuth: []], responses: { '201': { description: Created } } } }

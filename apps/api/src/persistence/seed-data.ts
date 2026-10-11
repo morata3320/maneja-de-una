@@ -50,6 +50,16 @@ export async function seedDevelopment(db: DataSource): Promise<void> {
         [i, 8 + i / 10],
       );
     }
+    for (const [model, category] of [
+      [11, 21],
+      [12, 22],
+      [13, 21],
+    ])
+      await m.query(
+        `INSERT INTO vehicle_model_categories(model_id,category_id)
+         VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [seedId(model), seedId(category)],
+      );
     for (let i = 1; i <= 16; i++) {
       const group = ((i - 1) % 3) + 1;
       await m.query(
@@ -59,7 +69,7 @@ export async function seedDevelopment(db: DataSource): Promise<void> {
           seedId(100 + i),
           seedId(group),
           seedId(10 + group),
-          seedId(20 + group),
+          seedId(group === 3 ? 21 : 20 + group),
           seedId(30 + group),
           group,
           2022 + (i % 4),
