@@ -156,7 +156,11 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         key: "role",
         label: "Rol",
         type: "select",
-        options: choices(["USER", "ADMIN"]),
+        required: true,
+        options: [
+          { value: "USER", label: "USER — Cliente" },
+          { value: "ADMIN", label: "ADMIN — Administrador" },
+        ],
       },
       {
         key: "status",

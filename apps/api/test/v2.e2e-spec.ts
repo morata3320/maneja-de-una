@@ -176,6 +176,53 @@ describe('Marketplace API V2', () => {
       });
   });
 
+  it('permite a ADMIN crear USER y ADMIN, y rechaza a USER o rol ausente', async () => {
+    const userPayload = {
+      firstName: 'Cliente',
+      lastName: 'Creado',
+      email: 'v2.created.user@example.test',
+      password,
+      cedula: cedula('091234567'),
+      phone: '+593971234567',
+    };
+    await request(app.getHttpServer())
+      .post('/api/v2/users')
+      .auth(token, { type: 'bearer' })
+      .send({ ...userPayload, role: 'ADMIN' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post('/api/v2/users')
+      .auth(adminToken, { type: 'bearer' })
+      .send(userPayload)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v2/users')
+      .auth(adminToken, { type: 'bearer' })
+      .send({ ...userPayload, role: 'USER' })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ email: userPayload.email, role: 'USER' });
+        expect(JSON.stringify(body)).not.toContain('password');
+      });
+    await request(app.getHttpServer())
+      .post('/api/v2/users')
+      .auth(adminToken, { type: 'bearer' })
+      .send({
+        ...userPayload,
+        email: 'v2.created.admin@example.test',
+        cedula: cedula('081234567'),
+        role: 'ADMIN',
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          email: 'v2.created.admin@example.test',
+          role: 'ADMIN',
+        });
+      });
+  });
+
   it('lista vehiculos con paginacion, filtros y HATEOAS', async () => {
     const list = await request(app.getHttpServer())
       .get('/api/v2/vehicles?page=1&limit=5&sort=price_asc')

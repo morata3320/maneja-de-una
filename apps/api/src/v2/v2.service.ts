@@ -14,12 +14,12 @@ import { requiredSecret } from '../security/token-verifier';
 import type { PublicUser } from '../auth/auth.service';
 import type {
   LoginV2Dto,
+  AdminUserCreateDto,
   PaymentDto,
   RegisterV2Dto,
   ReservationDto,
   ReservationPatchDto,
   SelfUpdateDto,
-  UserCreateDto,
   UserUpdateDto,
   VehicleDto,
   VehiclePatchDto,
@@ -435,9 +435,9 @@ export class V2Service {
     if (!row) throw new NotFoundException('Usuario no encontrado');
     return userView(row);
   }
-  async createUser(body: UserCreateDto) {
+  async createUser(body: AdminUserCreateDto) {
     const result = await this.register(body);
-    const role = body.role ?? 'USER',
+    const role = body.role,
       status = body.status ?? 'ACTIVE';
     const [row] = await this.db.query<Row[]>(
       'UPDATE users SET role=$1,status=$2,active=$3 WHERE id=$4 RETURNING *',

@@ -45,6 +45,7 @@ import {
   VehiclePatchDto,
   VehicleStockDto,
   AvailabilitySlotDto,
+  AdminUserCreateDto,
 } from './dto';
 import { V2Service } from './v2.service';
 
@@ -85,7 +86,7 @@ export class UsersV2Controller {
   @Get(':id') @UseGuards(AdminGuard) get(@Param('id') id: string) {
     return this.s.user(id);
   }
-  @Post() @UseGuards(AdminGuard) create(@Body() b: UserCreateDto) {
+  @Post() @UseGuards(AdminGuard) create(@Body() b: AdminUserCreateDto) {
     return this.s.createUser(b);
   }
   @Put(':id') @UseGuards(AdminGuard) put(

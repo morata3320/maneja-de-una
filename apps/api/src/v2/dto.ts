@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsEmail,
   IsEnum,
   IsInt,
@@ -47,6 +48,18 @@ export class UserCreateDto extends RegisterV2Dto {
   @IsOptional()
   @IsEnum(['USER', 'ADMIN'])
   role?: 'USER' | 'ADMIN';
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] })
+  @IsOptional()
+  @IsEnum(['ACTIVE', 'INACTIVE', 'SUSPENDED'])
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+}
+/** Payload accepted only when an administrator creates a user. */
+export class AdminUserCreateDto extends RegisterV2Dto {
+  @ApiProperty({ enum: ['USER', 'ADMIN'] })
+  @IsDefined({ message: 'Debes seleccionar un rol.' })
+  @IsEnum(['USER', 'ADMIN'])
+  role: 'USER' | 'ADMIN';
+
   @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] })
   @IsOptional()
   @IsEnum(['ACTIVE', 'INACTIVE', 'SUSPENDED'])
