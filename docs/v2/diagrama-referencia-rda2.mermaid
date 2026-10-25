@@ -1,0 +1,306 @@
+graph LR
+    %% =========================================================================
+    %% CAPA 1: PERSISTENCIA INDEPENDIENTE SUPABASE (12 ESQUEMAS Y 29 TABLAS)
+    %% =========================================================================
+    subgraph CAPA1 ["CAPA 1: PERSISTENCIA INDEPENDIENTE SUPABASE (12 ESQUEMAS)"]
+        subgraph SCH_CLI ["schema_clientes"]
+            T_CLI[("clientes")]
+        end
+
+        subgraph SCH_CAR ["schema_carritos"]
+            T_CAR[("carritos")]
+            T_CIT[("carrito_items")]
+        end
+
+        subgraph SCH_FAC ["schema_facturacion"]
+            T_FEN[("facturas_encabezado")]
+            T_FDE[("facturas_detalle")]
+        end
+
+        subgraph SCH_PAG ["schema_pagos"]
+            T_PAG[("transacciones_pago")]
+        end
+
+        subgraph SCH_PKG ["schema_paquetes"]
+            T_PKG[("paquetes")]
+            T_PIT[("paquete_items")]
+            T_CPR[("contrato_promociones")]
+        end
+
+        subgraph SCH_FIN ["schema_finanzas"]
+            T_FIN[("liquidaciones_proveedores")]
+        end
+
+        subgraph SCH_PROV ["schema_proveedores"]
+            T_PROV[("config_proveedor")]
+        end
+
+        subgraph SCH_ATR ["schema_atracciones"]
+            T_ATR_C[("atracciones_cache")]
+            T_ATR_R[("categorias_recursivas")]
+            T_ATR_O[("reservas_atraccion")]
+            T_ATR_S[("resenas_atraccion")]
+        end
+
+        subgraph SCH_AUT ["schema_autos"]
+            T_AUT_C[("autos_cache")]
+            T_AUT_O[("reservas_auto")]
+            T_AUT_M[("mantenimiento_autos")]
+        end
+
+        subgraph SCH_ALO ["schema_alojamientos"]
+            T_ALO_C[("alojamientos_cache")]
+            T_ALO_H[("tipos_habitacion")]
+            T_ALO_O[("reservas_alojamiento")]
+            T_ALO_U[("huespedes_reserva")]
+        end
+
+        subgraph SCH_VUE ["schema_vuelos"]
+            T_VUE_C[("vuelos_cache")]
+            T_VUE_O[("reservas_vuelo")]
+            T_VUE_A[("asientos_vuelo")]
+            T_VUE_P[("pases_abordar")]
+        end
+
+        subgraph SCH_AUD ["schema_auditoria"]
+            T_AUD_TRX[("auditoria_transacciones")]
+            T_AUD_ADM[("auditoria_administrativa")]
+            T_AUD_SAG[("auditoria_sagas")]
+        end
+    end
+
+    %% =========================================================================
+    %% CAPA 2: MICROSERVICIOS BÁSICOS (12 REST TYPEORM + 1 gRPC EN MEMORIA)
+    %% =========================================================================
+    subgraph CAPA2 ["CAPA 2: MICROSERVICIOS BÁSICOS (12 REST + 1 gRPC 50051)"]
+        MS_CLI["MS Clientes y Auth (REST / TypeORM)"]
+        MS_CAR["MS Carrito y Checkout (REST / TypeORM)"]
+        MS_FAC["MS Facturación (REST / TypeORM / Idempotency-Key)"]
+        MS_PAG["MS Simulación Pagos SOA (REST / TypeORM / Idempotency-Key)"]
+        MS_PKG["MS Paquetes Dinámicos (REST / TypeORM)"]
+        MS_FIN["MS Finanzas y Liquidaciones (REST / TypeORM)"]
+        MS_PROV["MS Proveedores y Salud Nodos (REST / TypeORM / Kill-Switches)"]
+        MS_AUD["MS Auditoría de Negocio y Transacciones (REST / TypeORM)"]
+
+        MS_ATR["MS Atracciones (REST / TypeORM / Árbol Recursivo)"]
+        MS_AUT["MS Autos y Flota (REST / TypeORM / Cooldown 2h)"]
+        MS_ALO["MS Alojamientos (REST / TypeORM / Check-in 14:00)"]
+        MS_VUE["MS Vuelos (REST / TypeORM / PNR y Pases Abordar)"]
+        MS_STK["MS Ingesta Stock (gRPC Inbound 50051 / In-Memory Redis)"]
+    end
+
+    %% Enlaces Capa 1 a Capa 2
+    T_CLI -.-> MS_CLI
+    T_CAR -.-> MS_CAR
+    T_CIT -.-> MS_CAR
+    T_FEN -.-> MS_FAC
+    T_FDE -.-> MS_FAC
+    T_PAG -.-> MS_PAG
+    T_PKG -.-> MS_PKG
+    T_PIT -.-> MS_PKG
+    T_CPR -.-> MS_PKG
+    T_FIN -.-> MS_FIN
+    T_PROV -.-> MS_PROV
+
+    T_ATR_C -.-> MS_ATR
+    T_ATR_R -.-> MS_ATR
+    T_ATR_O -.-> MS_ATR
+    T_ATR_S -.-> MS_ATR
+
+    T_AUT_C -.-> MS_AUT
+    T_AUT_O -.-> MS_AUT
+    T_AUT_M -.-> MS_AUT
+
+    T_ALO_C -.-> MS_ALO
+    T_ALO_H -.-> MS_ALO
+    T_ALO_O -.-> MS_ALO
+    T_ALO_U -.-> MS_ALO
+
+    T_VUE_C -.-> MS_VUE
+    T_VUE_O -.-> MS_VUE
+    T_VUE_A -.-> MS_VUE
+    T_VUE_P -.-> MS_VUE
+
+    T_AUD_TRX -.-> MS_AUD
+    T_AUD_ADM -.-> MS_AUD
+    T_AUD_SAG -.-> MS_AUD
+
+    %% =========================================================================
+    %% CAPA 3: ESB CENTRALIZADO DE DOS CAPAS (ENTERPRISE SERVICE BUS)
+    %% =========================================================================
+    subgraph CAPA3 ["CAPA 3: ESB CENTRALIZADO DE DOS CAPAS"]
+        subgraph ESB_INT ["ESB Capa Interna: Servicios Propios"]
+            ESB_ROUTER["Enrutador de Negocio y Sustituto de SQL Joins"]
+            ESB_SAGA["Orquestador Saga Compra y Compensación"]
+            ESB_POLICIES["Validación de Reglas de Negocio Internas"]
+        end
+
+        subgraph ESB_EXT ["ESB Capa de Integración: Socios Externos"]
+            ESB_ACL["Capa Anti-Corrupción (ACL) y Normalización DTO"]
+            ESB_CB["Circuit Breakers (Opossum) y Fallbacks"]
+            ESB_KILL["Kill-Switches de Aislamiento de Socios"]
+        end
+    end
+
+    %% Enlaces Capa 2 a Capa 3
+    MS_CLI <--> ESB_ROUTER
+    MS_CAR <--> ESB_ROUTER
+    MS_FAC <--> ESB_ROUTER
+    MS_PAG <--> ESB_ROUTER
+    MS_PKG <--> ESB_ROUTER
+    MS_FIN <--> ESB_ROUTER
+    MS_PROV <--> ESB_ROUTER
+    MS_AUD <--> ESB_ROUTER
+
+    MS_ATR <--> ESB_ACL
+    MS_AUT <--> ESB_ACL
+    MS_ALO <--> ESB_ACL
+    MS_VUE <--> ESB_ACL
+    MS_STK -->|Stream Stock Recibido| ESB_ACL
+
+    ESB_ROUTER <--> ESB_SAGA
+    ESB_ROUTER <--> ESB_ACL
+    ESB_ACL --- ESB_CB
+    ESB_CB --- ESB_KILL
+
+    %% =========================================================================
+    %% SOCIOS EXTERNOS (COMPAÑEROS DE PROYECTO)
+    %% =========================================================================
+    subgraph SOCIOS ["SOCIOS EXTERNOS (COMPAÑEROS RDA2)"]
+        EXT_REST["APIs REST Socios (Atracciones, Autos, Alojamientos, Vuelos)"]
+        EXT_GRPC["Push de Stock Socios (gRPC Client Streaming)"]
+    end
+
+    ESB_ACL <-->|Outbound REST Compra / Cancelación| EXT_REST
+    EXT_GRPC -->|Inbound TCP Puerto 50051| MS_STK
+
+    %% =========================================================================
+    %% CAPA 4: EVENT BUS Y STREAMING (RABBITMQ + APACHE KAFKA - DUAL BROKER)
+    %% =========================================================================
+    subgraph CAPA4 ["CAPA 4: EVENT BUS Y STREAMING DUAL (RABBITMQ + APACHE KAFKA)"]
+        subgraph BROKER_RABBIT ["Broker Transaccional: RabbitMQ (AMQP 0-9-1)"]
+            RB_EX["Exchange: booking.events (Topic)"]
+            Q_SEARCH["Cola: q.busquedas.masivas (Dampening)"]
+            Q_BUY["Cola: q.ordenes.confirmadas (Compras y Contratos)"]
+            Q_SAGA["Cola: q.sagas.compensacion (Rollbacks LIFO)"]
+            Q_STOCK["Cola: q.stock.actualizado (Alta Prioridad RAM)"]
+            Q_DLQ["Cola: q.dead_letter (DLQ tras 3 reintentos)"]
+        end
+
+        subgraph BROKER_KAFKA ["Event Streaming Commit Log: Apache Kafka Cluster"]
+            KF_BRIDGE["Cross-Broker Bridge: Conector RabbitMQ-Kafka"]
+            TOPIC_CAT["Tópico: booking.catalogo.stream (Particionado por Vertical)"]
+            TOPIC_AUD["Tópico: booking.compras.audit (Particionado por Cliente)"]
+            TOPIC_TEL["Tópico: booking.telemetria.nodes (Stream de Salud y Latencia)"]
+        end
+    end
+
+    ESB_ROUTER -->|Publica eventos negocio| RB_EX
+    ESB_SAGA -->|Emite orden confirmada o fallo| RB_EX
+    MS_STK -->|Emite stock.actualizado directo| RB_EX
+
+    RB_EX --> Q_SEARCH
+    RB_EX --> Q_BUY
+    RB_EX --> Q_SAGA
+    RB_EX --> Q_STOCK
+    RB_EX --> Q_DLQ
+
+    RB_EX -.->|Event Sourcing Replay| KF_BRIDGE
+    %% CORRECCIÓN AQUÍ: Se separaron las conexiones del operador &
+    KF_BRIDGE --> TOPIC_CAT
+    KF_BRIDGE --> TOPIC_AUD
+    KF_BRIDGE --> TOPIC_TEL
+
+    %% =========================================================================
+    %% CAPA 5: MICROSERVICIOS ORQUESTADOS (LÓGICA COMPUESTA & SEGURIDAD)
+    %% =========================================================================
+    subgraph CAPA5 ["CAPA 5: MICROSERVICIOS ORQUESTADOS"]
+        ORQ_FAC["ORQ_FAC: Facturación Compuesta (Factura + Cliente + Detalle + IVA 15%)"]
+        ORQ_PKG["ORQ_PKG: Motor Paquetes Dinámicos (Validación Combo y Contratos)"]
+        ORQ_STK["ORQ_STK: Orquestador Stock (Consolidación Stock gRPC + Catálogo)"]
+        ORQ_RES["ORQ_RES: Orquestador Reservas (Checkout Multivertical y Saga)"]
+        SEC_AUTH["Seguridad Transversal: JWT Guard + RBAC (CLIENTE, ADMIN, MANTENIMIENTO)"]
+    end
+
+    ESB_ROUTER --> ORQ_FAC
+    ESB_ROUTER --> ORQ_PKG
+    ESB_SAGA <--> ORQ_RES
+    Q_STOCK --> ORQ_STK
+    Q_BUY --> ORQ_FAC
+    Q_BUY --> MS_FIN
+    Q_SAGA --> ORQ_RES
+
+    TOPIC_AUD -.->|Stream Audit Inmutable| MS_AUD
+    TOPIC_TEL -.->|Stream Telemetría| MS_PROV
+
+    ORQ_FAC --- SEC_AUTH
+    ORQ_PKG --- SEC_AUTH
+    ORQ_STK --- SEC_AUTH
+    ORQ_RES --- SEC_AUTH
+
+    %% =========================================================================
+    %% CAPA 6: API GATEWAY Y BFF UNIFICADO (GRAPHQL / REVERSE PROXY)
+    %% =========================================================================
+    subgraph CAPA6 ["CAPA 6: API GATEWAY Y BFF UNIFICADO (GRAPHQL / REVERSE PROXY)"]
+        GW_SEC["Gateway Security: JWT Guards + Rate Limiter + Depth Limiting"]
+        GQL_SRV["Apollo Server NestJS: Single Entry Point /graphql y /api/v1/*"]
+        GQL_LOAD["DataLoaders: Resolución Batch (Anti-N+1 Problem)"]
+        GQL_WS["Suscripciones WebSocket (ws://) para Alertas en Vivo"]
+        subgraph GQL_OPS ["Operaciones GraphQL Schema"]
+            GQL_Q["Queries: catalogoUnificado, misReservas, facturaCompleta, saludNodos, auditoriaTransacciones, auditoriaSagas"]
+            GQL_M["Mutations: checkoutOrquestado, cancelarReservaSaga, checkInDigital"]
+            GQL_S["Subscriptions: stockActualizado, estadoReservaCambiado"]
+        end
+    end
+
+    ORQ_FAC --> GQL_SRV
+    ORQ_PKG --> GQL_SRV
+    ORQ_STK --> GQL_SRV
+    ORQ_RES --> GQL_SRV
+    MS_AUD --> GQL_SRV
+    GW_SEC --- GQL_SRV
+    GQL_SRV --- GQL_LOAD
+    GQL_SRV --- GQL_WS
+    GQL_SRV --> GQL_OPS
+
+    %% =========================================================================
+    %% CAPA 7: PRESENTACIÓN (MARKETPLACE REACT 18 & 8 PANELES ADMIN & MÓVIL)
+    %% =========================================================================
+    subgraph CAPA7 ["CAPA 7: PRESENTACIÓN (REACT 18 + CLIENTE MÓVIL)"]
+        subgraph UI_CLIENT ["Cliente Web Marketplace Turístico & App Móvil"]
+            UI_CAT["Catálogo Unificado y Búsqueda Masiva Multivertical"]
+            UI_CART["Carrito de Compras y Checkout Unificado"]
+            UI_BOOK["Mis Reservas y Check-in Digital (QR / Llave / PNR)"]
+            UI_MOB["App Móvil: Flutter / React Native (Preparación Reto 3)"]
+        end
+
+        subgraph UI_ADMIN ["8 Paneles Administrativos Especializados"]
+            ADM_NOD["1. Monitor Nodos y Kill-Switches (Grafo Semáforo 🟢/🔴)"]
+            ADM_AUT["2. Gestión Flota Autos (Cooldown Cronometrado 2h y Taller)"]
+            ADM_ATR["3. Árbol Categorías Atracciones (Comida, Guía, Transporte)"]
+            ADM_FIN["4. Liquidaciones Finanzas (Cálculo 10% Comisión y Pagos)"]
+            ADM_FAC["5. Consola Fiscal Facturación (Desglose IVA 15% y Auditoría)"]
+            ADM_PAG["6. Simulador Transaccional Pagos (Inyección de Fallos SOA)"]
+            ADM_STK["7. Monitor Ingesta Stock gRPC (Throughput msg/seg y Sync)"]
+            ADM_AUD["8. Consola Auditoría Transaccional y Sagas (Quién compró / Quién administró)"]
+        end
+    end
+
+    GQL_SRV ==>|Single Endpoint HTTP POST /graphql| UI_CLIENT
+    GQL_WS ==>|Suscripciones WebSockets ws://| UI_CLIENT
+    GQL_SRV -.->|Consultas y Mutaciones Administrativas| UI_ADMIN
+    UI_ADMIN -.->|Comandos Directos de Kill-Switch| ESB_KILL
+
+    %% =========================================================================
+    %% SISTEMA DE ARCHIVOS FÍSICOS WINSTON (LOGS TÉCNICOS / CERO LOGS DE RED EN BD)
+    %% =========================================================================
+    subgraph LOGS ["TELEMETRÍA Y LOGS TÉCNICOS FÍSICOS (WINSTON - CERO LOGS RED EN BD)"]
+        LOG_COMB[("logs/combined.log: Trazas Generales de Red")]
+        LOG_ERR[("logs/error.log: Excepciones y Circuit Breakers")]
+        LOG_AUD[("logs/audit.log: Trazabilidad Técnica y Handshakes")]
+    end
+
+    CAPA2 -.->|Winston Physical Logger| LOGS
+    CAPA3 -.->|Winston Physical Logger| LOGS
+    CAPA5 -.->|Winston Physical Logger| LOGS
+    CAPA6 -.->|Winston Physical Logger| LOGS
