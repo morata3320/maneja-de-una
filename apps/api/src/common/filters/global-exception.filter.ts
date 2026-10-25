@@ -22,7 +22,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const statusCode =
       exception instanceof HttpException ? exception.getStatus() : 500;
     const error = STATUS_CODES[statusCode] ?? 'Error';
-    if (/^\/autos\/v1(?:\/|$)/.test(req.originalUrl.split('?')[0])) {
+    if (/^(?:\/autos\/v1|\/api\/v2\/autos)(?:\/|$)/.test(req.originalUrl.split('?')[0])) {
       res.removeHeader('Cache-Control');
       const payload =
         exception instanceof AutosError
@@ -40,7 +40,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
                     ? 'BOOKING_NOT_CONFIRMED'
                     : 'VALIDATION_FAILED',
               detail: statusCode >= 500 ? 'Internal server error' : error,
+              instance: req.originalUrl.split('?')[0],
+              correlation_id: req.correlationId,
+              timestamp: new Date().toISOString(),
             };
+      if (exception instanceof AutosError) {
+        Object.assign(payload, {
+          instance: req.originalUrl.split('?')[0],
+          correlation_id: req.correlationId,
+          timestamp: new Date().toISOString(),
+        });
+      }
       if (!res.headersSent)
         res.status(statusCode).type('application/problem+json').json(payload);
       return;

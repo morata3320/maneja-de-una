@@ -16,6 +16,7 @@ import { autosDocument } from './integrations/autos/contract/contract-document';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { V2Module } from './v2/v2.module';
 import { HealthModule } from './health/health.module';
+import { AutosV2Module } from './integrations/autos-v2/autos-v2.module';
 
 export async function configureApp(app: INestApplication): Promise<void> {
   const origins = app
@@ -66,6 +67,7 @@ export async function configureApp(app: INestApplication): Promise<void> {
     .setDescription('Marketplace REST de alquiler de vehículos.')
     .setVersion('2.0')
     .addBearerAuth()
+    .addApiKey({ type: 'apiKey', in: 'header', name: 'X-API-Key' }, 'ApiKeyAuth')
     .addTag('Auth')
     .addTag('Vehicles')
     .addTag('Brands')
@@ -86,7 +88,7 @@ export async function configureApp(app: INestApplication): Promise<void> {
     'swagger',
     app,
     SwaggerModule.createDocument(app, config, {
-      include: [V2Module, HealthModule],
+      include: [V2Module, HealthModule, AutosV2Module],
     }),
   );
   SwaggerModule.setup(

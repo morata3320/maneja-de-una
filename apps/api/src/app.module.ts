@@ -20,6 +20,7 @@ import { RentalsModule } from './rentals/rentals.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { BookingModule } from './integrations/booking/booking.module';
 import { V2Module } from './v2/v2.module';
+import { AutosV2Module } from './integrations/autos-v2/autos-v2.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { V2Module } from './v2/v2.module';
     RentalsModule,
     FavoritesModule,
     BookingModule,
+    AutosV2Module,
     V2Module,
   ],
   providers: [
