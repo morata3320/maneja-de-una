@@ -189,6 +189,11 @@ describe('Autos RDA2 v3 sobre datos MANEJA DE UNA', () => {
   });
 
   it('expone en Swagger las mismas 19 operaciones V3', async () => {
+    const compatibilityHealth = await request(app.getHttpServer())
+      .get('/api/v3/health')
+      .expect(200);
+    expect(compatibilityHealth.body).toMatchObject({ version: '3.0.0' });
+
     const swagger = await request(app.getHttpServer())
       .get('/swagger-json')
       .expect(200);
