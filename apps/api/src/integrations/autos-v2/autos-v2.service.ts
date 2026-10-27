@@ -14,6 +14,7 @@ import type {
   ReturnCheckinV2Dto,
   SearchAutosV2Dto,
 } from './autos-v2.dto';
+import { InventoryStockOutboxService } from '../inventory/inventory-stock-outbox.service';
 
 type Actor = { id: string; role: string; scopes: string[] };
 type VehicleView = {
@@ -34,7 +35,10 @@ type VehicleView = {
 @Injectable()
 export class AutosV2Service {
   private readonly startedAt = Date.now();
-  constructor(private readonly db: DataSource) {}
+  constructor(
+    private readonly db: DataSource,
+    private readonly stockOutbox: InventoryStockOutboxService,
+  ) {}
 
   async health() {
     const started = performance.now();
@@ -254,6 +258,7 @@ VALUES($1,$2,$3,$4,'CONFIRMED',$5,$6,$7,$8,$9,'USD','[]',$10,$11,$12) RETURNING 
         { vehicle_id: vehicle.id, brand: vehicle.brand, model: vehicle.model }, body.conductor, coverage]);
       await this.history(m, id, null, 'CONFIRMED', actor.id, correlationId);
       await this.event(m, actor.id, 'AUTO_ORDER_CONFIRMED', id, correlationId, { order_id: id, vehicle_id: vehicle.id });
+      await this.stockOutbox.enqueue(m, vehicle.id, start, 0, correlationId);
       const response = this.orderView(created, Number(plan.deposit));
       await m.query(`INSERT INTO idempotency_records(owner_id,operation,key,request_hash,status_code,response_body)
 VALUES($1,'autos-v2:create',$2,$3,201,$4)`, [actor.id, key, JSON.stringify(body), response]);
@@ -328,6 +333,13 @@ VALUES($1,$2,$3,'DEVOLUCION',$4,$5,$6,$7)`, [randomUUID(), order.id, order.vehic
       );
       await this.history(m, String(order.id), String(order.status), 'CANCELLED', actor.id, correlationId);
       await this.event(m, actor.id, 'AUTO_ORDER_CANCELLED', String(order.id), correlationId, { order_id: order.id, refund_reference: refund, simulated: true });
+      await this.stockOutbox.enqueue(
+        m,
+        String(order.vehicle_id),
+        new Date(String(order.starts_at)),
+        1,
+        correlationId,
+      );
       return this.orderView(updated);
     });
   }

@@ -1,0 +1,18 @@
+flowchart LR
+    B[Booking Prototipo central] <-->|REST v3 / Tailscale| G[Puente REST V3 :3100]
+    G --> C[(catalog.*)]
+    G --> O[(booking.*)]
+    G --> P[(payments.*)]
+    G --> I[(identity.*)]
+    G --> R[Outbox de sincronización]
+    R -->|gRPC PushStockUpdate| B
+    V[Backend anterior MANEJA DE UNA V2 :3000] --> Q[(public.*)]
+    subgraph PG[PostgreSQL local :15432]
+      C
+      O
+      P
+      I
+      Q
+    end
+    note[Estado actual: 1 puente de compatibilidad, NO 7 microservicios independientes]
+    G --- note

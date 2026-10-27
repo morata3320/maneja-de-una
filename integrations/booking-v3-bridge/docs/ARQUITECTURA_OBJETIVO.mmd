@@ -1,0 +1,34 @@
+flowchart TB
+  UI[React/Vite MANEJA DE UNA] --> GW[API Gateway]
+  BK[Booking Prototipo] <-->|REST v3 checkout| GW
+  GW --> I[ms_identity]
+  GW --> CA[ms_catalog]
+  GW --> IN[ms_inventory]
+  GW --> OR[ms_order]
+  GW --> CO[ms_counter]
+  GW --> MA[ms_maintenance]
+  GW --> PR[ms_pricing]
+  OR --> EV[Event Bus RabbitMQ futuro]
+  IN -->|gRPC inventory.proto PushStockUpdate| BK
+  CA --> DC[(catalog - propietario)]
+  IN --> DI[(inventory - propietario futuro)]
+  OR --> DO[(booking - propietario)]
+  CO --> DCO[(counter - propietario futuro)]
+  MA --> DM[(maintenance - propietario futuro)]
+  PR --> DPR[(pricing - propietario futuro)]
+  I --> DIDENT[(identity - propietario)]
+  OR --> PAY[Pagos/compensación Saga]
+  PAY --> DP[(payments - propietario)]
+  OR -.-> IN
+  OR -.-> PR
+  CO -.-> OR
+  MA -.-> IN
+  subgraph SRV[Contratos internos definidos por el equipo]
+    CA
+    IN
+    OR
+    CO
+    MA
+    PR
+    I
+  end

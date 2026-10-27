@@ -178,6 +178,38 @@ export const expandedCatalog: readonly CatalogVehicle[] = [
 type IdRow = { id: string };
 type DepotRow = { id: number; supplier_id: number; location_id: string };
 
+async function ensureCatalogDepot(manager: EntityManager): Promise<void> {
+  const [active] = await manager.query<DepotRow[]>(`
+    SELECT d.id,d.supplier_id,d.location_id FROM depots d
+    JOIN suppliers s ON s.id=d.supplier_id
+    JOIN locations l ON l.id=d.location_id
+    WHERE d.active=true AND s.active=true AND l.active=true LIMIT 1
+  `);
+  if (active) return;
+  const locationId = catalogSeedId(31);
+  await manager.query(`
+    INSERT INTO locations(id,name,city,province,active)
+    VALUES($1,'Aeropuerto Quito','Quito','Pichincha',true)
+    ON CONFLICT(id) DO UPDATE SET active=true
+  `, [locationId]);
+  const [supplier] = await manager.query<Array<{ id: number }>>(`
+    INSERT INTO suppliers(name,active)
+    SELECT 'Maneja de Una',true
+    WHERE NOT EXISTS(SELECT 1 FROM suppliers WHERE lower(name)='maneja de una')
+    RETURNING id
+  `);
+  const [existingSupplier] = supplier
+    ? [supplier]
+    : await manager.query<Array<{ id: number }>>(
+        "SELECT id FROM suppliers WHERE lower(name)='maneja de una' ORDER BY id LIMIT 1",
+      );
+  await manager.query(`
+    INSERT INTO depots(supplier_id,location_id,name,airport,city_id,latitude,longitude,active)
+    SELECT $1,$2,'Maneja de Una - Aeropuerto Quito','UIO',1,-0.1292,-78.3575,true
+    WHERE NOT EXISTS(SELECT 1 FROM depots WHERE supplier_id=$1 AND location_id=$2)
+  `, [existingSupplier.id, locationId]);
+}
+
 async function findOrCreateNamed(
   manager: EntityManager,
   table: 'brands' | 'categories',
@@ -231,6 +263,7 @@ async function expandVehicleCatalog(manager: EntityManager): Promise<number> {
   await manager.query(
     "SELECT pg_advisory_xact_lock(hashtext('maneja-de-una:vehicle-catalog:v1'))",
   );
+  await ensureCatalogDepot(manager);
   const deterministicBrandIds: Record<string, number> = {
     Toyota: 1,
     Kia: 2,

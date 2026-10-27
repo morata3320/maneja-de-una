@@ -22,29 +22,44 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const statusCode =
       exception instanceof HttpException ? exception.getStatus() : 500;
     const error = STATUS_CODES[statusCode] ?? 'Error';
-    if (/^(?:\/autos\/v1|\/api\/v2\/autos)(?:\/|$)/.test(req.originalUrl.split('?')[0])) {
+    if (
+      /^(?:\/autos\/v1|\/api\/v[23]\/autos)(?:\/|$)/.test(
+        req.originalUrl.split('?')[0],
+      )
+    ) {
       res.removeHeader('Cache-Control');
+      const response =
+        exception instanceof HttpException
+          ? exception.getResponse()
+          : undefined;
+      const explicitProblem =
+        typeof response === 'object' &&
+        response !== null &&
+        'code' in response &&
+        'status' in response;
       const payload =
         exception instanceof AutosError
           ? exception.getResponse()
-          : {
-              type: 'about:blank',
-              title: error,
-              status: statusCode,
-              code:
-                statusCode === 429
-                  ? 'RATE_LIMIT_EXCEEDED'
-                  : statusCode >= 500 ||
-                      statusCode === 401 ||
-                      statusCode === 403
-                    ? 'BOOKING_NOT_CONFIRMED'
-                    : 'VALIDATION_FAILED',
-              detail: statusCode >= 500 ? 'Internal server error' : error,
-              instance: req.originalUrl.split('?')[0],
-              correlation_id: req.correlationId,
-              timestamp: new Date().toISOString(),
-            };
-      if (exception instanceof AutosError) {
+          : explicitProblem
+            ? response
+            : {
+                type: 'about:blank',
+                title: error,
+                status: statusCode,
+                code:
+                  statusCode === 429
+                    ? 'RATE_LIMIT_EXCEEDED'
+                    : statusCode >= 500 ||
+                        statusCode === 401 ||
+                        statusCode === 403
+                      ? 'BOOKING_NOT_CONFIRMED'
+                      : 'VALIDATION_FAILED',
+                detail: statusCode >= 500 ? 'Internal server error' : error,
+                instance: req.originalUrl.split('?')[0],
+                correlation_id: req.correlationId,
+                timestamp: new Date().toISOString(),
+              };
+      if (exception instanceof AutosError || explicitProblem) {
         Object.assign(payload, {
           instance: req.originalUrl.split('?')[0],
           correlation_id: req.correlationId,

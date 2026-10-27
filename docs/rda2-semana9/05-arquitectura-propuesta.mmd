@@ -1,0 +1,72 @@
+flowchart LR
+  subgraph EXT[Consumidores externos]
+    WEB[Frontend Maneja de Una]
+    BOOKING[Booking Prototipo]
+    ADMIN[Panel administrativo]
+  end
+
+  GW[API Gateway\nREST /api/v1 · /api/v2 · /api/v3\nJWT/API key · rate limit · correlation · ProblemDetails]
+
+  WEB --> GW
+  ADMIN --> GW
+  BOOKING -->|REST OpenAPI v3| GW
+
+  subgraph DOM[Dominios provisionales de la tienda]
+    ID[ms_identity\nusuarios · roles · tokens]
+    CAT[ms_catalog\nmarca · modelo · categoría · media]
+    INV[ms_inventory\nunidad física · holds · disponibilidad\nestado · cooldown]
+    ORD[ms_order\nPNR · reserva · snapshots · idempotencia]
+    CNT[ms_counter\ncheck-in · entrega · devolución · inspección]
+    MNT[ms_maintenance\nodómetro · historial · alertas]
+    PRC[ms_pricing\ntarifas · coberturas · promociones]
+    PAY[payments\ntransacción · refund\nMOCK/adapter real]
+  end
+
+  GW --> ID
+  GW --> CAT
+  GW --> INV
+  GW --> ORD
+  GW --> CNT
+  GW --> MNT
+  GW --> PRC
+  GW --> PAY
+
+  ORD -->|hold/confirm/release por API| INV
+  ORD -->|quote snapshot| PRC
+  ORD -->|charge/refund| PAY
+  CNT -->|transición operativa| INV
+  CNT -->|inspección/odómetro| MNT
+  MNT -->|maintenance restriction| INV
+
+  subgraph DBS[Database-per-Service objetivo]
+    DBI[(db_identity)]
+    DBC[(db_catalog)]
+    DBV[(db_inventory)]
+    DBO[(db_order)]
+    DBT[(db_counter)]
+    DBM[(db_maintenance)]
+    DBP[(db_pricing)]
+    DBPAY[(db_payments)]
+  end
+
+  ID --- DBI
+  CAT --- DBC
+  INV --- DBV
+  ORD --- DBO
+  CNT --- DBT
+  MNT --- DBM
+  PRC --- DBP
+  PAY --- DBPAY
+
+  OUT[(Outbox por servicio)]
+  ORD --> OUT
+  INV --> OUT
+  CNT --> OUT
+  MNT --> OUT
+  OUT -->|retry idempotente| SYNC[InventoryStockService client]
+  SYNC -->|PushStockUpdate 1/0\nStreamInventoryChanges\nGetSlotAvailability| BOOKING
+
+  NOTE1[No FKs ni SELECT entre bases.\nIDs lógicos y snapshots contractuales.]
+  NOTE2[Primera implementación: límites dentro del monolito.\nExtracción física sólo tras aprobación y parity tests.]
+  DBS --- NOTE1
+  DOM --- NOTE2

@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {canonicalRequest, validateOrder,amount,slotId,stateMap,rentalDays} from '../src/domain.mjs';
+const valid={vehicle_id:'veh-001',pickup_date:'2026-11-15',dropoff_date:'2026-11-18',pickup_time:'10:00',dropoff_time:'10:00',driver:{full_name:'Test',email:'test@example.com',phone:'099',license_number:'123',age:28}};
+test('canónico inglés',()=>assert.equal(validateOrder(canonicalRequest(valid)),null));
+test('edad menor rechaza 422',()=>assert.equal(validateOrder(canonicalRequest({...valid,driver:{...valid.driver,age:17}})).code,'DRIVER_UNDERAGE'));
+test('fechas inválidas rechazan 422',()=>assert.equal(validateOrder(canonicalRequest({...valid,dropoff_date:'2026-11-12'})).code,'INVALID_DATES'));
+test('tiempo de 30 minutos',()=>assert.throws(()=>rentalDays({...valid,pickup_time:'10:15'})));
+test('tarifa 3 días',()=>assert.equal(amount({price_per_day:28},canonicalRequest(valid)).total,84));
+test('id de slot estable',()=>assert.equal(slotId('veh-001','2026-11-15','10:00'),'slot-veh-001-20261115-1000'));
+test('máquina de estado',()=>assert.equal(stateMap.CLEANING,'EN_LIMPIEZA'));

@@ -35,6 +35,7 @@ export async function configureApp(app: INestApplication): Promise<void> {
     exclude: [
       { path: 'autos/v1/{*path}', method: RequestMethod.ALL },
       { path: 'api/v2/{*path}', method: RequestMethod.ALL },
+      { path: 'api/v3/{*path}', method: RequestMethod.ALL },
     ],
   });
   app.enableCors({
