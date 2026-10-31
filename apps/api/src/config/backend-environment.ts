@@ -54,4 +54,33 @@ export function validateBackendEnvironment(env: NodeJS.ProcessEnv): void {
   }
   if (env.NODE_ENV === 'production' && env.WEBHOOK_ALLOW_LOOPBACK === 'true')
     throw new Error('Loopback de webhooks prohibido en producción.');
+  const stockTransport = env.STOCK_SYNC_TRANSPORT ?? 'grpc';
+  if (!['grpc', 'rest', 'rabbitmq'].includes(stockTransport))
+    throw new Error('STOCK_SYNC_TRANSPORT debe ser grpc, rest o rabbitmq.');
+  if (env.STOCK_SYNC_ENABLED === 'true') {
+    if (stockTransport === 'rest') {
+      const url = new URL(env.BOOKING_STOCK_URL ?? '');
+      if (url.protocol !== 'https:' || url.username || url.password)
+        throw new Error(
+          'BOOKING_STOCK_URL debe ser HTTPS y no incluir credenciales.',
+        );
+      if (!env.BOOKING_STOCK_API_KEY)
+        throw new Error(
+          'BOOKING_STOCK_API_KEY es obligatoria para stock REST.',
+        );
+    } else if (stockTransport === 'rabbitmq') {
+      const url = new URL(env.RABBITMQ_URL ?? '');
+      if (
+        url.protocol !== 'amqps:' ||
+        !url.hostname ||
+        !url.username ||
+        !url.password
+      )
+        throw new Error(
+          'RABBITMQ_URL debe usar AMQPS e incluir credenciales CloudAMQP.',
+        );
+    } else if (!env.BOOKING_GRPC_ADDR) {
+      throw new Error('BOOKING_GRPC_ADDR es obligatorio para stock gRPC.');
+    }
+  }
 }

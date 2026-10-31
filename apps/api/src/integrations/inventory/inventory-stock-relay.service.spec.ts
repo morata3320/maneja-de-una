@@ -1,5 +1,5 @@
 import type { DataSource, EntityManager } from 'typeorm';
-import type { InventoryGrpcClient } from './inventory-grpc.client';
+import type { InventoryStockPublisher } from './inventory-stock-publisher';
 import { InventoryStockRelayService } from './inventory-stock-relay.service';
 import type { PendingStockUpdate } from './inventory-stock.types';
 
@@ -26,11 +26,11 @@ function harness(push: jest.Mock) {
       async (work: (value: EntityManager) => Promise<void>) => work(manager),
     ),
   } as unknown as DataSource;
-  const grpc = {
+  const publisher = {
     isEnabled: () => true,
     push,
-  } as unknown as InventoryGrpcClient;
-  return { service: new InventoryStockRelayService(db, grpc), query };
+  } as unknown as InventoryStockPublisher;
+  return { service: new InventoryStockRelayService(db, publisher), query };
 }
 
 describe('InventoryStockRelayService', () => {

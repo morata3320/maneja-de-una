@@ -5,7 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.mts\"",
@@ -28,7 +30,8 @@
     "migration:revert": "npm run build && node dist/persistence/migrate.js --revert",
     "seed": "npm run build && node dist/persistence/seed.js",
     "seed:catalog": "npm run build && node dist/persistence/seed-catalog.js",
-    "auth:token": "node scripts/auth-token.mts"
+    "auth:token": "node scripts/auth-token.mts",
+    "rabbitmq:check": "node scripts/rabbitmq-check.mts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
@@ -42,6 +45,7 @@
     "@nestjs/typeorm": "^12.0.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "amqplib": "^2.2.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
@@ -59,6 +63,7 @@
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
+    "@types/amqplib": "^0.10.8",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",

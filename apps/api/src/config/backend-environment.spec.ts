@@ -19,6 +19,7 @@ describe('Configuración backend segura', () => {
     { INTERNAL_JWT_SECRET: 'short' },
     { API_DEPRECATION_DATE: '2026-02-30' },
     { PUBLIC_AUTOS_BASE_URL: 'ftp://example.com' },
+    { STOCK_SYNC_TRANSPORT: 'smtp' },
   ])('rechaza configuración %j', (change) =>
     expect(() =>
       validateBackendEnvironment({ ...valid(), ...change }),
@@ -27,6 +28,43 @@ describe('Configuración backend segura', () => {
   it('admite modo local académico en producción con secretos separados', () =>
     expect(() =>
       validateBackendEnvironment({ ...valid(), NODE_ENV: 'production' }),
+    ).not.toThrow());
+  it('exige HTTPS al activar el fallback REST de stock', () =>
+    expect(() =>
+      validateBackendEnvironment({
+        ...valid(),
+        STOCK_SYNC_ENABLED: 'true',
+        STOCK_SYNC_TRANSPORT: 'rest',
+        BOOKING_STOCK_URL: 'http://booking.example/stock',
+        BOOKING_STOCK_API_KEY: 'test-key',
+      }),
+    ).toThrow('BOOKING_STOCK_URL'));
+  it('exige la API key saliente al activar stock REST', () =>
+    expect(() =>
+      validateBackendEnvironment({
+        ...valid(),
+        STOCK_SYNC_ENABLED: 'true',
+        STOCK_SYNC_TRANSPORT: 'rest',
+        BOOKING_STOCK_URL: 'https://booking.example/stock',
+      }),
+    ).toThrow('BOOKING_STOCK_API_KEY'));
+  it('exige AMQPS con credenciales al activar RabbitMQ', () =>
+    expect(() =>
+      validateBackendEnvironment({
+        ...valid(),
+        STOCK_SYNC_ENABLED: 'true',
+        STOCK_SYNC_TRANSPORT: 'rabbitmq',
+        RABBITMQ_URL: 'amqp://guest:guest@localhost',
+      }),
+    ).toThrow('RABBITMQ_URL'));
+  it('admite una URL CloudAMQP mediante AMQPS', () =>
+    expect(() =>
+      validateBackendEnvironment({
+        ...valid(),
+        STOCK_SYNC_ENABLED: 'true',
+        STOCK_SYNC_TRANSPORT: 'rabbitmq',
+        RABBITMQ_URL: 'amqps://user:password@rabbit.example/vhost',
+      }),
     ).not.toThrow());
   it('admite JWKS de producción sin modo local', () =>
     expect(() =>

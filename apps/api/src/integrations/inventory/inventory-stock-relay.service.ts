@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { InventoryGrpcClient } from './inventory-grpc.client';
+import { InventoryStockPublisher } from './inventory-stock-publisher';
 import type { PendingStockUpdate } from './inventory-stock.types';
 
 @Injectable()
@@ -18,11 +18,11 @@ export class InventoryStockRelayService
 
   constructor(
     private readonly db: DataSource,
-    private readonly grpc: InventoryGrpcClient,
+    private readonly publisher: InventoryStockPublisher,
   ) {}
 
   onModuleInit(): void {
-    if (!this.grpc.isEnabled()) {
+    if (!this.publisher.isEnabled()) {
       this.logger.log(
         'Stock relay disabled; pending Outbox rows are preserved.',
       );
@@ -42,7 +42,7 @@ export class InventoryStockRelayService
   }
 
   async flush(): Promise<void> {
-    if (this.running || !this.grpc.isEnabled()) return;
+    if (this.running || !this.publisher.isEnabled()) return;
     this.running = true;
     try {
       await this.db.transaction(async (manager) => {
@@ -56,7 +56,7 @@ export class InventoryStockRelayService
         `);
         for (const row of rows) {
           try {
-            const ack = await this.grpc.push(row);
+            const ack = await this.publisher.push(row);
             if (!ack.success || (ack.error_code && ack.error_code !== 'OK'))
               throw new Error(
                 `ACK_${ack.error_code || 'REJECTED'}: ${ack.message}`,
@@ -83,7 +83,7 @@ export class InventoryStockRelayService
                 delaySeconds,
                 error instanceof Error
                   ? error.message.slice(0, 500)
-                  : 'Unknown gRPC error',
+                  : 'Unknown inventory publisher error',
               ],
             );
           }
