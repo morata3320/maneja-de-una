@@ -3,6 +3,7 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 import { STATUS_CODES } from 'node:http';
 import type { Response } from 'express';
@@ -11,6 +12,8 @@ import { AutosError } from '../../integrations/autos/autos-error';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const req = context.getRequest<CorrelatedRequest>();
@@ -22,6 +25,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const statusCode =
       exception instanceof HttpException ? exception.getStatus() : 500;
     const error = STATUS_CODES[statusCode] ?? 'Error';
+    if (statusCode >= 500) {
+      const cause =
+        exception instanceof Error
+          ? { name: exception.name, message: exception.message }
+          : { name: 'UnknownError', message: String(exception) };
+      this.logger.error({
+        event: 'unhandled_http_exception',
+        method: req.method,
+        path: req.originalUrl.split('?')[0],
+        correlationId: req.correlationId,
+        ...cause,
+      });
+    }
     if (
       /^(?:\/autos\/v1|\/api\/v[23]\/autos)(?:\/|$)/.test(
         req.originalUrl.split('?')[0],
