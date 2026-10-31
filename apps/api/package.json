@@ -31,7 +31,8 @@
     "seed": "npm run build && node dist/persistence/seed.js",
     "seed:catalog": "npm run build && node dist/persistence/seed-catalog.js",
     "auth:token": "node scripts/auth-token.mts",
-    "rabbitmq:check": "node scripts/rabbitmq-check.mts"
+    "rabbitmq:check": "node scripts/rabbitmq-check.mts",
+    "verify:production-deps": "node scripts/verify-production-dependencies.mts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
@@ -56,7 +57,8 @@
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^1.1.1"
+    "typeorm": "^1.1.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",
@@ -80,8 +82,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^6.0.2",
-    "yaml": "^2.9.1"
+    "typescript": "^6.0.2"
   },
   "scarfSettings": {
     "enabled": false
