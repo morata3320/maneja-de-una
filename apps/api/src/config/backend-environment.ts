@@ -83,4 +83,16 @@ export function validateBackendEnvironment(env: NodeJS.ProcessEnv): void {
       throw new Error('BOOKING_GRPC_ADDR es obligatorio para stock gRPC.');
     }
   }
+  if (env.BOOKING_CHECKIN_ENABLED === 'true') {
+    const url = new URL(
+      env.BOOKING_CHECKIN_BASE_URL ??
+        'https://booking-core-api.azurewebsites.net/api/v3',
+    );
+    if (url.protocol !== 'https:' || url.username || url.password)
+      throw new Error(
+        'BOOKING_CHECKIN_BASE_URL debe ser HTTPS y no incluir credenciales.',
+      );
+    if (!env.BOOKING_CHECKIN_API_KEY)
+      throw new Error('BOOKING_CHECKIN_API_KEY es obligatoria para check-in.');
+  }
 }

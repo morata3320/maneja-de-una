@@ -115,7 +115,12 @@ export class AutosV2Controller {
     @Req() req: AutosV2Request & CorrelatedRequest,
     @Headers('idempotency-key') key: string,
   ) {
-    return this.service.createOrder(body, req.actor, key, String(req.correlationId));
+    return this.service.createOrder(
+      body,
+      req.actor,
+      key,
+      String(req.correlationId),
+    );
   }
 
   @Post('reservas')
@@ -128,7 +133,12 @@ export class AutosV2Controller {
     @Req() req: AutosV2Request & CorrelatedRequest,
     @Headers('idempotency-key') key: string,
   ) {
-    return this.service.createOrder(body, req.actor, key, String(req.correlationId));
+    return this.service.createOrder(
+      body,
+      req.actor,
+      key,
+      String(req.correlationId),
+    );
   }
 
   @Post('reservas/:id/checkin')
@@ -141,7 +151,12 @@ export class AutosV2Controller {
     @Body() _body: DigitalCheckinV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.service.digitalCheckin(id, req.actor, String(req.correlationId));
+    return this.service.digitalCheckin(
+      id,
+      _body,
+      req.actor,
+      String(req.correlationId),
+    );
   }
 
   @Post('orders/:id/checkin-entrega')
@@ -154,7 +169,12 @@ export class AutosV2Controller {
     @Body() body: DeliveryCheckinV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.service.delivery(id, body, req.actor, String(req.correlationId));
+    return this.service.delivery(
+      id,
+      body,
+      req.actor,
+      String(req.correlationId),
+    );
   }
 
   @Post('orders/:id/checkin-devolucion')
@@ -167,7 +187,12 @@ export class AutosV2Controller {
     @Body() body: ReturnCheckinV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.service.returnOrder(id, body, req.actor, String(req.correlationId));
+    return this.service.returnOrder(
+      id,
+      body,
+      req.actor,
+      String(req.correlationId),
+    );
   }
 
   @Get('orders/:orderId')
@@ -210,7 +235,11 @@ export class AutosV2Controller {
     @Param('id') id: string,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.service.returnByVehicle(id, req.actor, String(req.correlationId));
+    return this.service.returnByVehicle(
+      id,
+      req.actor,
+      String(req.correlationId),
+    );
   }
 
   @Post(':id/mantenimiento/registro')
@@ -223,6 +252,11 @@ export class AutosV2Controller {
     @Body() body: MaintenanceV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.service.maintenance(id, body, req.actor, String(req.correlationId));
+    return this.service.maintenance(
+      id,
+      body,
+      req.actor,
+      String(req.correlationId),
+    );
   }
 }

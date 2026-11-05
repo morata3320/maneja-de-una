@@ -153,12 +153,17 @@ export class AutosV3Controller {
     @Body() _body: DigitalCheckinV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.autos.digitalCheckin(id, req.actor, String(req.correlationId));
+    return this.autos.digitalCheckin(
+      id,
+      _body,
+      req.actor,
+      String(req.correlationId),
+    );
   }
   @Post('orders/:id/checkin-entrega')
   @HttpCode(200)
   @UseGuards(AutosV2Guard)
-  @AutosV2Scopes('autos:book')
+  @AutosV2Scopes('autos:admin')
   @ApiBearerAuth()
   delivery(
     @Param('id') id: string,

@@ -8,13 +8,21 @@ import { InventoryIntegrationModule } from '../inventory/inventory-integration.m
 import { AutosV3Controller } from '../autos-v3/autos-v3.controller';
 import { AutosV3Service } from '../autos-v3/autos-v3.service';
 import { BookingV3CompatibilityController } from '../autos-v3/booking-v3-compatibility.controller';
+import { BookingModule } from '../booking/booking.module';
+import { BookingClientsController } from '../booking/booking-clients.controller';
 
 @Module({
-  imports: [AuthModule, SecurityModule, InventoryIntegrationModule],
+  imports: [
+    AuthModule,
+    SecurityModule,
+    InventoryIntegrationModule,
+    BookingModule,
+  ],
   controllers: [
     AutosV2Controller,
     AutosV3Controller,
     BookingV3CompatibilityController,
+    BookingClientsController,
   ],
   providers: [AutosV2Service, AutosV3Service, AutosV2Guard],
 })

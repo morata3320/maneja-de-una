@@ -17,6 +17,11 @@ import {
 type Row = Record<string, unknown>;
 type Page = { data: Row[]; total?: number; page?: number; limit?: number };
 type Option = { value: string; label: string };
+const autosV3Base = (
+  import.meta.env.VITE_API_URL || "http://localhost:3000/api/v2"
+)
+  .replace(/\/$/, "")
+  .replace(/\/api\/v2$/, "/api/v3");
 type Field = {
   key: string;
   label: string;
@@ -317,6 +322,9 @@ const labels: Record<string, string> = {
   customerName: "Cliente",
   vehicleName: "Vehículo",
   pickupLocation: "Lugar",
+  digitalCheckinAt: "Check-in digital",
+  deliveredAt: "Entregado",
+  bookingClientId: "Cliente Booking",
 };
 const idOf = (row: Row) => String(row.id ?? row.depotId ?? "");
 const display = (value: unknown) =>
@@ -768,6 +776,66 @@ function ReservationsAdmin() {
       );
     }
   }
+  async function confirmDelivery(row: Row) {
+    const identification = String(row.bookingClientIdentification ?? "");
+    const license = String(row.bookingClientLicense ?? "");
+    if (!row.bookingClientId || !identification || !license) {
+      setMessage(
+        "La reserva debe estar vinculada a un cliente Booking con identificación y licencia.",
+      );
+      return;
+    }
+    const mileage = window.prompt(
+      "Kilometraje al entregar:",
+      String(row.initialMileage ?? row.vehicleMileage ?? ""),
+    );
+    if (mileage === null) return;
+    const parsedMileage = Number(mileage);
+    if (!Number.isInteger(parsedMileage) || parsedMileage < 0) {
+      setMessage("El kilometraje debe ser un entero no negativo.");
+      return;
+    }
+    const operator = window.prompt(
+      "Identificador del operador:",
+      "operador-mostrador",
+    );
+    if (!operator?.trim()) return;
+    if (!window.confirm("¿Confirmar la entrega física del vehículo?")) return;
+    try {
+      await api({
+        method: "POST",
+        url: `${autosV3Base}/autos/reservas/${row.id}/checkin`,
+        data: {
+          documento_identidad: identification,
+          numero_licencia: license,
+        },
+      });
+      const result = await api<Row>({
+        method: "POST",
+        url: `${autosV3Base}/autos/orders/${row.id}/checkin-entrega`,
+        data: {
+          licencia_conducir: license,
+          km_salida: parsedMileage,
+          tecnico_entrega: operator.trim(),
+          observaciones:
+            "Vehículo entregado físicamente con contrato y licencia firmada",
+        },
+      });
+      const notification = result.booking_notification as Row | undefined;
+      setMessage(
+        notification?.acknowledged === true
+          ? "Entrega confirmada y Booking Central respondió acknowledged=true."
+          : "Entrega registrada; la notificación a Booking quedó pendiente de reintento.",
+      );
+      await load();
+    } catch (reason) {
+      setMessage(
+        reason instanceof Error
+          ? reason.message
+          : "No fue posible confirmar la entrega",
+      );
+    }
+  }
   return (
     <>
       <PageHeader title="Reservas" description="Operación real de reservas." />
@@ -838,6 +906,17 @@ function ReservationsAdmin() {
                           onClick={() => void cancel(row)}
                         >
                           Cancelar
+                        </Button>
+                      )}
+                      {String(row.status) === "CONFIRMED" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void confirmDelivery(row)}
+                        >
+                          {row.deliveredAt
+                            ? "Reintentar notificación"
+                            : "Confirmar entrega"}
                         </Button>
                       )}
                     </td>

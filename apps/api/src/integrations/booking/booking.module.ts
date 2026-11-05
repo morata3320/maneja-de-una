@@ -1,5 +1,14 @@
 import { Module } from '@nestjs/common';
+import { BookingCheckinClient } from './booking-checkin.client';
+import { BookingCheckinService } from './booking-checkin.service';
+import { BookingClientsService } from './booking-clients.service';
 
-// Contexto reservado: sin contratos ni implementación de negocio todavía.
-@Module({})
+@Module({
+  providers: [
+    BookingClientsService,
+    BookingCheckinClient,
+    BookingCheckinService,
+  ],
+  exports: [BookingClientsService, BookingCheckinService],
+})
 export class BookingModule {}

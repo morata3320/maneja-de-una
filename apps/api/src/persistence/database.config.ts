@@ -5,6 +5,7 @@ import { InitialSchema1790200000000 } from './migrations/1790200000000-initial-s
 import { MarketplaceV21790300000000 } from './migrations/1790300000000-marketplace-v2';
 import { AutosRda2Operations1790400000000 } from './migrations/1790400000000-autos-rda2-operations';
 import { InventoryStockOutbox1790500000000 } from './migrations/1790500000000-inventory-stock-outbox';
+import { BookingV31ClientsCheckin1790600000000 } from './migrations/1790600000000-booking-v31-clients-checkin';
 export function databaseOptions(): DataSourceOptions {
   validateBackendEnvironment(process.env);
   const port = Number(process.env.DB_PORT ?? 5432);
@@ -30,6 +31,7 @@ export function databaseOptions(): DataSourceOptions {
       MarketplaceV21790300000000,
       AutosRda2Operations1790400000000,
       InventoryStockOutbox1790500000000,
+      BookingV31ClientsCheckin1790600000000,
     ],
     synchronize: false,
     logging: false,
