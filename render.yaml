@@ -109,14 +109,16 @@ services:
   - type: web
     name: maneja-de-una-web-mdu
     runtime: static
-    branch: main
+    branch: feature/rda2-v2-integracion
     rootDir: apps/web
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     autoDeployTrigger: checksPass
     envVars:
       - key: VITE_API_URL
-        value: https://maneja-de-una-api-mdu.onrender.com/api/v2
+        value: https://maneja-de-una-autos-api.azurewebsites.net/api/v2
+      - key: VITE_AUTOS_V3_URL
+        value: https://maneja-de-una-autos-api.azurewebsites.net/api/v3/autos
     routes:
       - type: rewrite
         source: /*
