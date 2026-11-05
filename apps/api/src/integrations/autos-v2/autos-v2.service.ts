@@ -390,10 +390,11 @@ VALUES($1,'autos-v2:create',$2,$3,201,$4)`,
           );
       }
       const firstCheckin = !order.digital_checkin_at;
-      const [updated] = await m.query<Array<Record<string, unknown>>>(
+      const updateResult = await m.query(
         'UPDATE orders SET digital_checkin_at=COALESCE(digital_checkin_at,now()),updated_at=now() WHERE id=$1 RETURNING *',
         [order.id],
       );
+      const [updated] = this.mutationRows<Record<string, unknown>>(updateResult);
       await m.query(
         "UPDATE vehicles SET operational_status='LISTO_PARA_ENTREGAR',updated_at=now() WHERE id=$1 AND operational_status IN ('DISPONIBLE','RESERVADO')",
         [order.vehicle_id],
@@ -461,10 +462,11 @@ VALUES($1,'autos-v2:create',$2,$3,201,$4)`,
         throw new ConflictException(
           'El kilometraje inicial no puede disminuir.',
         );
-      const [updated] = await m.query<Array<Record<string, unknown>>>(
+      const updateResult = await m.query(
         'UPDATE orders SET delivered_at=now(),initial_mileage=$2,delivery_agent=$3,updated_at=now() WHERE id=$1 RETURNING *',
         [order.id, body.km_salida, adminId],
       );
+      const [updated] = this.mutationRows<Record<string, unknown>>(updateResult);
       await m.query(
         "UPDATE vehicles SET mileage=$2,operational_status='ENTREGADO',updated_at=now() WHERE id=$1",
         [order.vehicle_id, body.km_salida],
@@ -859,6 +861,11 @@ WHERE (id::text=$1 OR locator=$1) AND ($2 OR owner_id=$3) FOR UPDATE`,
     );
     if (!row) throw new NotFoundException('Reserva no encontrada.');
     return row;
+  }
+
+  private mutationRows<T>(result: unknown): T[] {
+    if (!Array.isArray(result)) return [];
+    return Array.isArray(result[0]) ? (result[0] as T[]) : (result as T[]);
   }
 
   private async releaseCooldowns() {

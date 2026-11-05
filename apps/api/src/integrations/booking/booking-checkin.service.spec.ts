@@ -16,10 +16,37 @@ const notification = {
 };
 
 describe('BookingCheckinService', () => {
+  it('usa parámetros separados para order_id UUID y external_order_id text', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const service = new BookingCheckinService(
+      {} as DataSource,
+      {} as BookingClientsService,
+      {} as BookingCheckinClient,
+    );
+
+    await expect(
+      service.prepare(
+        { query } as unknown as EntityManager,
+        {
+          id: notification.order_id,
+          locator: 'MDU-TEST',
+          client_id: notification.client_id,
+          driver_details: {},
+        },
+        notification.admin_id,
+        notification.observations,
+      ),
+    ).resolves.toBe(notification.client_id);
+
+    expect(query.mock.calls[0][0]).toContain('VALUES($1,$2,$6,$3,$4,$5)');
+    expect(query.mock.calls[0][1]).toHaveLength(6);
+    expect(query.mock.calls[0][1][5]).toBe(notification.order_id);
+  });
+
   it('confirma el Outbox únicamente después del ACK de Booking', async () => {
     const query = jest
       .fn()
-      .mockResolvedValueOnce([notification])
+      .mockResolvedValueOnce([[notification], 1])
       .mockResolvedValueOnce([]);
     const db = {
       transaction: (callback: (manager: EntityManager) => unknown) =>
@@ -50,7 +77,7 @@ describe('BookingCheckinService', () => {
   it('preserva PENDING con backoff cuando Booking falla', async () => {
     const query = jest
       .fn()
-      .mockResolvedValueOnce([notification])
+      .mockResolvedValueOnce([[notification], 1])
       .mockResolvedValueOnce([]);
     const db = {
       transaction: (callback: (manager: EntityManager) => unknown) =>

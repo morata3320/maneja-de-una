@@ -27,6 +27,11 @@ type NotificationRow = {
   response_payload: Record<string, unknown> | null;
 };
 
+function mutationRows<T>(result: unknown): T[] {
+  if (!Array.isArray(result)) return [];
+  return Array.isArray(result[0]) ? (result[0] as T[]) : (result as T[]);
+}
+
 @Injectable()
 export class BookingCheckinService {
   constructor(
@@ -63,16 +68,16 @@ export class BookingCheckinService {
     await manager.query(
       `INSERT INTO booking_checkin_notifications(
          order_id,client_id,external_order_id,admin_id,checkin_at,observations
-       ) VALUES($1,$2,$1::text,$3,$4,$5)
+       ) VALUES($1,$2,$6,$3,$4,$5)
        ON CONFLICT(order_id) DO NOTHING`,
-      [order.id, clientId, adminId, checkinAt, observations],
+      [order.id, clientId, adminId, checkinAt, observations, String(order.id)],
     );
     return clientId;
   }
 
   async notify(orderId: string, correlationId: string) {
     const claim = await this.db.transaction(async (manager) => {
-      const [row] = await manager.query<NotificationRow[]>(
+      const result = await manager.query(
         `UPDATE booking_checkin_notifications
          SET status='SENDING',attempts=attempts+1,
              next_attempt_at=now()+interval '60 seconds',updated_at=now()
@@ -81,6 +86,7 @@ export class BookingCheckinService {
          RETURNING *`,
         [orderId],
       );
+      const [row] = mutationRows<NotificationRow>(result);
       if (row) return { row, acquired: true };
       const [current] = await manager.query<NotificationRow[]>(
         'SELECT * FROM booking_checkin_notifications WHERE order_id=$1',
