@@ -319,6 +319,7 @@ const labels: Record<string, string> = {
   startsAt: "Inicio",
   endsAt: "Fin",
   paymentStatus: "Pago",
+  locator: "Código de reserva",
   customerName: "Cliente",
   vehicleName: "Vehículo",
   pickupLocation: "Lugar",
@@ -363,8 +364,8 @@ function useCollection(url: string) {
   const [result, setResult] = useState<Page>({ data: [], total: 0 });
   const [loading, setLoading] = useState(true),
     [error, setError] = useState("");
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const value = await api<Page | Row[]>({ url });
@@ -383,6 +384,8 @@ function useCollection(url: string) {
   }, [url]);
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(true), 15_000);
+    return () => window.clearInterval(timer);
   }, [load]);
   return { ...result, loading, error, load };
 }
@@ -735,7 +738,7 @@ function ReservationsAdmin() {
   const url = `/reservations?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, total = 0, loading, error, load } = useCollection(url),
     columns = [
-      "id",
+      "locator",
       "customerName",
       "vehicleName",
       "startsAt",
@@ -748,17 +751,18 @@ function ReservationsAdmin() {
     ];
   const reservationValue = (row: Row, column: string) => {
     const value = row[column];
-    if (column === "status")
+    if (column === "status") {
+      if (row.deliveredAt) return "ENTREGADO";
+      if (value === "CONFIRMED")
+        return row.digitalCheckinAt ? "PENDIENTE_ENTREGA" : "RESERVADO";
       return (
-        (
-          {
-            PENDING: "Pendiente",
-            CONFIRMED: "Confirmada",
-            CANCELLED: "Cancelada",
-            COMPLETED: "Completada",
-          } as Record<string, string>
-        )[String(value)] ?? display(value)
+        ({
+          PENDING: "RESERVADO",
+          CANCELLED: "CANCELADA",
+          COMPLETED: "COMPLETADA",
+        } as Record<string, string>)[String(value)] ?? display(value)
       );
+    }
     if (["startsAt", "endsAt", "createdAt"].includes(column) && value)
       return new Date(String(value)).toLocaleString();
     if (column === "totalAmount" && value != null)
@@ -842,7 +846,8 @@ function ReservationsAdmin() {
       <Card>
         <div className="admin-toolbar">
           <Input
-            label="Buscar"
+            label="Código, cédula o email"
+            placeholder="MDU-…, 1712345678 o cliente@ejemplo.com"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -916,7 +921,7 @@ function ReservationsAdmin() {
                         >
                           {row.deliveredAt
                             ? "Reintentar notificación"
-                            : "Confirmar entrega"}
+                            : "Confirmar Entrega de Llaves / Check-in"}
                         </Button>
                       )}
                     </td>

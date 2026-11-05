@@ -148,8 +148,10 @@ const reservationView = (row: Row) => {
     paymentStatus: payment?.status ?? null,
     paymentReference: payment?.paymentReference ?? null,
     bookingClientId: scalarText(row.booking_client_id),
+    bookingClientEmail: scalarText(row.booking_client_email),
     bookingClientIdentification: scalarText(row.booking_client_identification),
     bookingClientLicense: scalarText(row.booking_client_license),
+    locator: scalarText(row.locator),
     digitalCheckinAt: row.digital_checkin_at,
     deliveredAt: row.delivered_at,
     initialMileage:
@@ -887,7 +889,7 @@ export class V2Service {
     if (typeof query.search === 'string' && query.search.trim()) {
       vals.push(`%${query.search.trim()}%`);
       where.push(
-        `(o.id::text ILIKE $${vals.length} OR u.email ILIKE $${vals.length} OR concat(u.first_name,' ',u.last_name) ILIKE $${vals.length} OR concat(b.name,' ',vm.name) ILIKE $${vals.length})`,
+        `(o.id::text ILIKE $${vals.length} OR o.locator ILIKE $${vals.length} OR u.email ILIKE $${vals.length} OR bc.email ILIKE $${vals.length} OR bc.identification ILIKE $${vals.length} OR concat(u.first_name,' ',u.last_name) ILIKE $${vals.length} OR concat(b.name,' ',vm.name) ILIKE $${vals.length})`,
       );
     }
     const clause = where.length ? ' WHERE ' + where.join(' AND ') : '';
@@ -902,8 +904,8 @@ export class V2Service {
         vals,
       );
       const rows = await this.db.query<Row[]>(
-        `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.initial_mileage,
-          bc.id booking_client_id,bc.identification booking_client_identification,bc.license booking_client_license,
+        `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.initial_mileage,
+          bc.id booking_client_id,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
           u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
           v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
           d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,

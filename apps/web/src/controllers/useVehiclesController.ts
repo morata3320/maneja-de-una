@@ -78,21 +78,31 @@ export function useVehiclesController(query = "") {
     [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    api<ApiPage<ApiVehicle>>({
-      url: `/vehicles${query}`,
-      signal: controller.signal,
-    })
-      .then((r) => {
-        setVehicles(r.data.map(mapVehicle));
-        setTotal(r.total);
+    const load = (initial = false) => {
+      if (initial) setLoading(true);
+      void api<ApiPage<ApiVehicle>>({
+        url: `/vehicles${query}`,
+        signal: controller.signal,
       })
-      .catch((e) => {
-        if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : "Error");
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
+        .then((r) => {
+          setVehicles(r.data.map(mapVehicle));
+          setTotal(r.total);
+          setError("");
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted)
+            setError(e instanceof Error ? e.message : "Error");
+        })
+        .finally(() => {
+          if (initial) setLoading(false);
+        });
+    };
+    load(true);
+    const timer = window.setInterval(() => load(), 15_000);
+    return () => {
+      window.clearInterval(timer);
+      controller.abort();
+    };
   }, [query]);
   return { vehicles, total, loading, error };
 }
