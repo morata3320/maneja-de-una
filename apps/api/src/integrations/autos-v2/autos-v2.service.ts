@@ -806,6 +806,12 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
   }
 
   private orderView(row: Record<string, unknown>, deposit = 0) {
+    const pickup = this.localDateTimeParts(row.starts_at);
+    const dropoff = this.localDateTimeParts(row.ends_at);
+    const dropoffInstant = this.asDate(row.ends_at);
+    const availableFrom = dropoffInstant
+      ? new Date(dropoffInstant.getTime() + 2 * 60 * 60 * 1000)
+      : null;
     return {
       order_id: row.id,
       pnr: row.locator,
@@ -818,6 +824,11 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
       total_price: Number(row.total_amount),
       precio_total_monto: Number(row.total_amount),
       moneda: row.currency,
+      pickup_date: pickup?.date,
+      pickup_time: pickup?.time,
+      dropoff_date: dropoff?.date,
+      dropoff_time: dropoff?.time,
+      disponible_desde: availableFrom?.toISOString(),
       refund: row.refund_reference
         ? { id: row.refund_reference, status: 'MOCK_PROCESSED' }
         : undefined,
@@ -827,6 +838,33 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
         cancel: `/api/v2/autos/orders/${String(row.id)}/cancel`,
       },
     };
+  }
+
+  private localDateTimeParts(value: unknown) {
+    const instant = this.asDate(value);
+    if (!instant) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(instant);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? '';
+    return {
+      date: `${part('year')}-${part('month')}-${part('day')}`,
+      time: `${part('hour')}:${part('minute')}`,
+    };
+  }
+
+  private asDate(value: unknown): Date | null {
+    if (value instanceof Date) return value;
+    if (typeof value !== 'string' && typeof value !== 'number') return null;
+    const instant = new Date(value);
+    return Number.isFinite(instant.getTime()) ? instant : null;
   }
 
   private async ensureAvailable(

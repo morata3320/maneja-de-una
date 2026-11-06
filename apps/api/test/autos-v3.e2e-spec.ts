@@ -74,7 +74,12 @@ describe('Autos RDA2 v3 sobre datos MANEJA DE UNA', () => {
     expect(created.body).toMatchObject({
       status: 'RESERVADO',
       vehicle_id: vehicleId,
+      pickup_date: '2042-05-10',
+      pickup_time: '10:00',
+      dropoff_date: '2042-05-12',
+      dropoff_time: '10:00',
     });
+    expect(created.body.disponible_desde).toBe('2042-05-12T17:00:00.000Z');
     expect(created.body.pnr).toBeTruthy();
     expect(created.body.voucher_qr_payload).toContain(created.body.pnr);
 
