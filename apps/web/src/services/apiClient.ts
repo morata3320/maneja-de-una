@@ -25,14 +25,24 @@ apiClient.interceptors.request.use((config) => {
 });
 apiClient.interceptors.response.use(
   (r) => r,
-  (error: AxiosError<{ message?: string | string[] }>) => {
+  (
+    error: AxiosError<{
+      message?: string | string[];
+      detail?: string;
+      code?: string;
+      correlation_id?: string;
+    }>,
+  ) => {
     if (error.response?.status === 401) {
       clearSession();
     }
-    const raw = error.response?.data?.message;
-    const message = Array.isArray(raw)
-      ? raw.join(". ")
-      : raw || "No fue posible completar la solicitud.";
+    const data = error.response?.data;
+    const raw = data?.message;
+    const detail = Array.isArray(raw) ? raw.join(". ") : raw || data?.detail;
+    const reference = data?.correlation_id
+      ? ` (referencia: ${data.correlation_id})`
+      : "";
+    const message = `${detail || "No fue posible completar la solicitud."}${reference}`;
     return Promise.reject(new Error(message));
   },
 );

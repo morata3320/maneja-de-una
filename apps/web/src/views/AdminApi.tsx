@@ -734,6 +734,7 @@ function ReservationsAdmin() {
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
     [selected, setSelected] = useState<Row | null>(null),
+    [deliveryInProgress, setDeliveryInProgress] = useState<string | null>(null),
     [message, setMessage] = useState("");
   const url = `/reservations?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, total = 0, loading, error, load } = useCollection(url),
@@ -781,42 +782,69 @@ function ReservationsAdmin() {
     }
   }
   async function confirmDelivery(row: Row) {
-    const identification = String(row.bookingClientIdentification ?? "");
-    const license = String(row.bookingClientLicense ?? "");
-    if (!row.bookingClientId || !identification || !license) {
+    setMessage("");
+    setDeliveryInProgress(String(row.id));
+    let current: Row;
+    try {
+      current = await api<Row>({ url: `/reservations/${row.id}` });
+    } catch (reason) {
       setMessage(
-        "La reserva debe estar vinculada a un cliente Booking con identificación y licencia.",
+        reason instanceof Error
+          ? `No se pudo validar la reserva: ${reason.message}`
+          : "No se pudo validar la reserva.",
       );
+      setDeliveryInProgress(null);
+      return;
+    }
+    const identification = String(current.bookingClientIdentification ?? "");
+    const license = String(current.bookingClientLicense ?? "");
+    if (!current.bookingClientId || !identification || !license) {
+      setMessage(
+        "Entrega bloqueada: la reserva no tiene cliente Booking, identificación y licencia asociados.",
+      );
+      setDeliveryInProgress(null);
       return;
     }
     const mileage = window.prompt(
       "Kilometraje al entregar:",
-      String(row.initialMileage ?? row.vehicleMileage ?? ""),
+      String(current.initialMileage ?? current.vehicleMileage ?? ""),
     );
-    if (mileage === null) return;
+    if (mileage === null) {
+      setDeliveryInProgress(null);
+      return;
+    }
     const parsedMileage = Number(mileage);
     if (!Number.isInteger(parsedMileage) || parsedMileage < 0) {
       setMessage("El kilometraje debe ser un entero no negativo.");
+      setDeliveryInProgress(null);
       return;
     }
     const operator = window.prompt(
       "Identificador del operador:",
       "operador-mostrador",
     );
-    if (!operator?.trim()) return;
-    if (!window.confirm("¿Confirmar la entrega física del vehículo?")) return;
+    if (!operator?.trim()) {
+      setDeliveryInProgress(null);
+      return;
+    }
+    if (!window.confirm("¿Confirmar la entrega física del vehículo?")) {
+      setDeliveryInProgress(null);
+      return;
+    }
     try {
-      await api({
-        method: "POST",
-        url: `${autosV3Base}/autos/reservas/${row.id}/checkin`,
-        data: {
-          documento_identidad: identification,
-          numero_licencia: license,
-        },
-      });
+      if (!current.digitalCheckinAt && !current.deliveredAt) {
+        await api({
+          method: "POST",
+          url: `${autosV3Base}/autos/reservas/${current.id}/checkin`,
+          data: {
+            documento_identidad: identification,
+            numero_licencia: license,
+          },
+        });
+      }
       const result = await api<Row>({
         method: "POST",
-        url: `${autosV3Base}/autos/orders/${row.id}/checkin-entrega`,
+        url: `${autosV3Base}/autos/orders/${current.id}/checkin-entrega`,
         data: {
           licencia_conducir: license,
           km_salida: parsedMileage,
@@ -838,6 +866,8 @@ function ReservationsAdmin() {
           ? reason.message
           : "No fue posible confirmar la entrega",
       );
+    } finally {
+      setDeliveryInProgress(null);
     }
   }
   return (
@@ -917,9 +947,12 @@ function ReservationsAdmin() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={deliveryInProgress === String(row.id)}
                           onClick={() => void confirmDelivery(row)}
                         >
-                          {row.deliveredAt
+                          {deliveryInProgress === String(row.id)
+                            ? "Procesando…"
+                            : row.deliveredAt
                             ? "Reintentar notificación"
                             : "Confirmar Entrega de Llaves / Check-in"}
                         </Button>
@@ -933,7 +966,11 @@ function ReservationsAdmin() {
         ) : (
           <EmptyState title="No hay reservas." />
         )}
-        {message && <p role="status">{message}</p>}
+        {message && (
+          <p className="form-error" role="alert">
+            {message}
+          </p>
+        )}
         <div className="table-footer">
           <Button
             variant="ghost"
