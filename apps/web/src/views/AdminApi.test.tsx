@@ -54,4 +54,33 @@ describe('ReservationsAdmin delivery check-in', () => {
       'no tiene un cliente Booking',
     );
   });
+
+  it('abre el formulario de devolución para una reserva entregada', async () => {
+    const delivered = {
+      ...incompleteReservation,
+      deliveredAt: '2026-11-06T17:00:00.000Z',
+      initialMileage: 32000,
+      vehicleMileage: 32000,
+    };
+    vi.mocked(api).mockImplementation(async ({ url }) => {
+      if (String(url).startsWith('/reservations?'))
+        return { data: [delivered], total: 1, page: 1, limit: 10 } as never;
+      if (url === `/reservations/${delivered.id}`) return delivered as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<ReservationsAdmin />);
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Devolver vehículo' }),
+    );
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Registrar devolución del vehículo',
+      }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Kilometraje de retorno')).toBeTruthy();
+    expect(screen.getByLabelText('Nivel de combustible (%)')).toBeTruthy();
+  });
 });

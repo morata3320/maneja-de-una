@@ -28,6 +28,16 @@ type DeliveryFormState = {
   operator: string;
   observations: string;
 };
+type ReturnFormState = {
+  row: Row;
+  detail: Row;
+  loading: boolean;
+  submitting: boolean;
+  error: string;
+  mileage: string;
+  fuel: string;
+  observations: string;
+};
 const autosV3Base = (
   import.meta.env.VITE_API_URL || "http://localhost:3000/api/v2"
 )
@@ -746,6 +756,7 @@ export function ReservationsAdmin() {
     [status, setStatus] = useState(""),
     [selected, setSelected] = useState<Row | null>(null),
     [delivery, setDelivery] = useState<DeliveryFormState | null>(null),
+    [returning, setReturning] = useState<ReturnFormState | null>(null),
     [message, setMessage] = useState("");
   const url = `/reservations?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, total = 0, loading, error, load } = useCollection(url),
@@ -764,6 +775,7 @@ export function ReservationsAdmin() {
   const reservationValue = (row: Row, column: string) => {
     const value = row[column];
     if (column === "status") {
+      if (row.returnedAt) return "COMPLETADA";
       if (row.deliveredAt) return "ENTREGADO";
       if (value === "CONFIRMED")
         return row.digitalCheckinAt ? "PENDIENTE_ENTREGA" : "RESERVADO";
@@ -916,6 +928,114 @@ export function ReservationsAdmin() {
       );
     }
   }
+  async function openReturn(row: Row) {
+    setMessage("");
+    setReturning({
+      row,
+      detail: row,
+      loading: true,
+      submitting: false,
+      error: "",
+      mileage: String(row.finalMileage ?? row.vehicleMileage ?? row.initialMileage ?? ""),
+      fuel: "100",
+      observations: "Vehículo recibido y enviado a limpieza",
+    });
+    try {
+      const detail = await api<Row>({ url: `/reservations/${row.id}` });
+      setReturning((current) =>
+        current && String(current.row.id) === String(row.id)
+          ? {
+              ...current,
+              detail,
+              loading: false,
+              mileage:
+                current.mileage ||
+                String(
+                  detail.finalMileage ??
+                    detail.vehicleMileage ??
+                    detail.initialMileage ??
+                    "",
+                ),
+            }
+          : current,
+      );
+    } catch (reason) {
+      setReturning((current) =>
+        current && String(current.row.id) === String(row.id)
+          ? {
+              ...current,
+              loading: false,
+              error:
+                reason instanceof Error
+                  ? `No se pudo cargar el detalle: ${reason.message}`
+                  : "No se pudo cargar el detalle de la reserva.",
+            }
+          : current,
+      );
+    }
+  }
+  async function submitReturn() {
+    if (!returning || returning.loading || returning.submitting) return;
+    const current = returning.detail;
+    const mileage = Number(returning.mileage);
+    const fuel = Number(returning.fuel);
+    let validation = "";
+    if (!current.deliveredAt)
+      validation = "El vehículo todavía no ha sido entregado al cliente.";
+    else if (current.returnedAt)
+      validation = "Esta devolución ya fue registrada.";
+    else if (!Number.isInteger(mileage) || mileage < 0)
+      validation = "El kilometraje debe ser un entero no negativo.";
+    else if (
+      current.initialMileage != null &&
+      mileage < Number(current.initialMileage)
+    )
+      validation = "El kilometraje final no puede ser menor al inicial.";
+    else if (!Number.isInteger(fuel) || fuel < 0 || fuel > 100)
+      validation = "El combustible debe ser un porcentaje entre 0 y 100.";
+    if (validation) {
+      setReturning((value) =>
+        value ? { ...value, error: validation } : value,
+      );
+      return;
+    }
+    setReturning((value) =>
+      value ? { ...value, submitting: true, error: "" } : value,
+    );
+    try {
+      const result = await api<Row>({
+        method: "POST",
+        url: `${autosV3Base}/autos/orders/${current.id}/checkin-devolucion`,
+        data: {
+          km_retorno: mileage,
+          nivel_combustible: fuel,
+          observaciones: returning.observations.trim() || undefined,
+        },
+      });
+      const cooldown = result.cooldown as Row | undefined;
+      const availableAt = cooldown?.fin_cooldown
+        ? new Date(String(cooldown.fin_cooldown)).toLocaleString()
+        : "al finalizar la limpieza";
+      setMessage(
+        `Devolución registrada. El vehículo estará disponible ${availableAt}.`,
+      );
+      setReturning(null);
+      await load();
+    } catch (reason) {
+      setReturning((value) =>
+        value
+          ? {
+              ...value,
+              submitting: false,
+              error:
+                reason instanceof Error
+                  ? reason.message
+                  : "No fue posible registrar la devolución.",
+            }
+          : value,
+      );
+    }
+  }
   return (
     <>
       <PageHeader title="Reservas" description="Operación real de reservas." />
@@ -1003,6 +1123,17 @@ export function ReservationsAdmin() {
                       {Boolean(row.deliveredAt) && (
                         <span>Entrega confirmada</span>
                       )}
+                      {Boolean(row.deliveredAt) && !row.returnedAt && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() => void openReturn(row)}
+                        >
+                          Devolver vehículo
+                        </Button>
+                      )}
+                      {Boolean(row.returnedAt) && <span>Vehículo devuelto</span>}
                     </td>
                   </tr>
                 ))}
@@ -1151,6 +1282,101 @@ export function ReservationsAdmin() {
                 disabled={delivery.loading || delivery.submitting}
               >
                 {delivery.submitting ? "Confirmando…" : "Confirmar entrega"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+      <Modal
+        open={!!returning}
+        onClose={() => {
+          if (!returning?.submitting) setReturning(null);
+        }}
+        title="Registrar devolución del vehículo"
+      >
+        {returning && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitReturn();
+            }}
+          >
+            {returning.loading ? (
+              <p role="status">Cargando datos de la reserva…</p>
+            ) : (
+              <>
+                <Input
+                  label="Kilometraje de retorno"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={returning.mileage}
+                  onChange={(event) =>
+                    setReturning((value) =>
+                      value
+                        ? { ...value, mileage: event.target.value, error: "" }
+                        : value,
+                    )
+                  }
+                  required
+                />
+                <Input
+                  label="Nivel de combustible (%)"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={returning.fuel}
+                  onChange={(event) =>
+                    setReturning((value) =>
+                      value
+                        ? { ...value, fuel: event.target.value, error: "" }
+                        : value,
+                    )
+                  }
+                  required
+                />
+                <label className="field">
+                  <span>Observaciones de devolución</span>
+                  <textarea
+                    value={returning.observations}
+                    onChange={(event) =>
+                      setReturning((value) =>
+                        value
+                          ? {
+                              ...value,
+                              observations: event.target.value,
+                              error: "",
+                            }
+                          : value,
+                      )
+                    }
+                    rows={3}
+                  />
+                </label>
+              </>
+            )}
+            {returning.error && (
+              <p className="form-error" role="alert">
+                {returning.error}
+              </p>
+            )}
+            <div className="form-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={returning.submitting}
+                onClick={() => setReturning(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={returning.loading || returning.submitting}
+              >
+                {returning.submitting
+                  ? "Registrando…"
+                  : "Confirmar devolución"}
               </Button>
             </div>
           </form>

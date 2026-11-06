@@ -154,8 +154,11 @@ const reservationView = (row: Row) => {
     locator: scalarText(row.locator),
     digitalCheckinAt: row.digital_checkin_at,
     deliveredAt: row.delivered_at,
+    returnedAt: row.returned_at,
     initialMileage:
       row.initial_mileage == null ? null : Number(row.initial_mileage),
+    finalMileage:
+      row.final_mileage == null ? null : Number(row.final_mileage),
     vehicleMileage:
       row.vehicle_mileage == null ? null : Number(row.vehicle_mileage),
     pickupDepot,
@@ -904,7 +907,7 @@ export class V2Service {
         vals,
       );
       const rows = await this.db.query<Row[]>(
-        `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.initial_mileage,
+        `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
           bc.id booking_client_id,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
           u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
           v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
@@ -929,7 +932,7 @@ export class V2Service {
   }
   async reservation(user: PublicUser, id: string) {
     const [r] = await this.db.query<Row[]>(
-      `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.initial_mileage,
+      `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
         bc.id booking_client_id,bc.identification booking_client_identification,bc.license booking_client_license,
         u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
         v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
