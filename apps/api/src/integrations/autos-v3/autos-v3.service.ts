@@ -46,7 +46,6 @@ export class AutosV3Service {
           : (body.coverage_type ?? 'BASICA'),
       conductor: {
         nombre: body.driver.full_name,
-        documento: body.driver.license_number,
         edad: body.driver.age,
         full_name: body.driver.full_name,
         email: body.driver.email,

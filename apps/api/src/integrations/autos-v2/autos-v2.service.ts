@@ -323,7 +323,7 @@ ORDER BY created_at,id LIMIT $1`,
           location: { name: body.dropoff_location },
         },
       };
-      const client = await this.bookingClients.findForDriver(
+      const client = await this.bookingClients.requireForDriver(
         m,
         body.conductor as Record<string, unknown>,
       );
@@ -348,7 +348,7 @@ VALUES($1,$2,$3,$4,'CONFIRMED',$5,$6,$7,$8,$9,'USD','[]',$10,$11,$12,$13) RETURN
           },
           body.conductor,
           coverage,
-          client?.id ?? null,
+          client.id,
         ],
       );
       await this.history(m, id, null, 'CONFIRMED', actor.id, correlationId);

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource, type EntityManager } from 'typeorm';
@@ -115,7 +116,6 @@ export class BookingClientsService {
     const identification =
       this.text(driver.identificacion) ??
       this.text(driver.documento) ??
-      this.text(driver.license_number) ??
       null;
     const license =
       this.text(driver.license_number) ??
@@ -136,6 +136,18 @@ export class BookingClientsService {
         'Los datos del conductor identifican clientes diferentes.',
       );
     return matches[0] ?? null;
+  }
+
+  async requireForDriver(
+    manager: EntityManager,
+    driver: DriverDetails,
+  ): Promise<BookingClientRow> {
+    const client = await this.findForDriver(manager, driver);
+    if (!client)
+      throw new UnprocessableEntityException(
+        'El conductor debe registrarse en /api/v3/clientes antes de crear la reserva.',
+      );
+    return client;
   }
 
   private view(client: BookingClientRow) {
