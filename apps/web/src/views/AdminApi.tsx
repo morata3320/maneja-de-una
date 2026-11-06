@@ -17,6 +17,17 @@ import {
 type Row = Record<string, unknown>;
 type Page = { data: Row[]; total?: number; page?: number; limit?: number };
 type Option = { value: string; label: string };
+type DeliveryFormState = {
+  row: Row;
+  detail: Row;
+  loading: boolean;
+  submitting: boolean;
+  error: string;
+  license: string;
+  mileage: string;
+  operator: string;
+  observations: string;
+};
 const autosV3Base = (
   import.meta.env.VITE_API_URL || "http://localhost:3000/api/v2"
 )
@@ -729,12 +740,12 @@ function CrudCollection({
   );
 }
 
-function ReservationsAdmin() {
+export function ReservationsAdmin() {
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
     [selected, setSelected] = useState<Row | null>(null),
-    [deliveryInProgress, setDeliveryInProgress] = useState<string | null>(null),
+    [delivery, setDelivery] = useState<DeliveryFormState | null>(null),
     [message, setMessage] = useState("");
   const url = `/reservations?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, total = 0, loading, error, load } = useCollection(url),
@@ -781,56 +792,86 @@ function ReservationsAdmin() {
       );
     }
   }
-  async function confirmDelivery(row: Row) {
+  async function openDelivery(row: Row) {
     setMessage("");
-    setDeliveryInProgress(String(row.id));
-    let current: Row;
+    setDelivery({
+      row,
+      detail: row,
+      loading: true,
+      submitting: false,
+      error: "",
+      license: String(row.bookingClientLicense ?? ""),
+      mileage: String(row.initialMileage ?? row.vehicleMileage ?? ""),
+      operator: "operador-mostrador",
+      observations:
+        "Vehículo entregado físicamente con contrato y licencia firmada",
+    });
     try {
-      current = await api<Row>({ url: `/reservations/${row.id}` });
+      const detail = await api<Row>({ url: `/reservations/${row.id}` });
+      setDelivery((current) =>
+        current && String(current.row.id) === String(row.id)
+          ? {
+              ...current,
+              detail,
+              loading: false,
+              error:
+                detail.bookingClientId && detail.bookingClientIdentification
+                  ? ""
+                  : "La reserva no tiene un cliente Booking con identificación asociado.",
+              license:
+                current.license || String(detail.bookingClientLicense ?? ""),
+              mileage:
+                current.mileage ||
+                String(detail.initialMileage ?? detail.vehicleMileage ?? ""),
+            }
+          : current,
+      );
     } catch (reason) {
-      setMessage(
-        reason instanceof Error
-          ? `No se pudo validar la reserva: ${reason.message}`
-          : "No se pudo validar la reserva.",
+      setDelivery((current) =>
+        current && String(current.row.id) === String(row.id)
+          ? {
+              ...current,
+              loading: false,
+              error:
+                reason instanceof Error
+                  ? `No se pudo cargar el detalle: ${reason.message}`
+                  : "No se pudo cargar el detalle de la reserva.",
+            }
+          : current,
       );
-      setDeliveryInProgress(null);
-      return;
     }
+  }
+  async function submitDelivery() {
+    if (!delivery || delivery.loading || delivery.submitting) return;
+    const current = delivery.detail;
     const identification = String(current.bookingClientIdentification ?? "");
-    const license = String(current.bookingClientLicense ?? "");
-    if (!current.bookingClientId || !identification || !license) {
-      setMessage(
-        "Entrega bloqueada: la reserva no tiene cliente Booking, identificación y licencia asociados.",
-      );
-      setDeliveryInProgress(null);
+    const license = delivery.license.trim();
+    const parsedMileage = Number(delivery.mileage);
+    let validation = "";
+    if (String(current.status) !== "CONFIRMED")
+      validation = "Solo una reserva confirmada puede entregarse.";
+    else if (current.deliveredAt)
+      validation = "Esta reserva ya fue entregada y no puede repetirse.";
+    else if (!current.bookingClientId || !identification)
+      validation =
+        "La reserva no tiene un cliente Booking con identificación asociado.";
+    else if (!license) validation = "Ingresa la licencia de conducir.";
+    else if (!Number.isInteger(parsedMileage) || parsedMileage < 0)
+      validation = "El kilometraje debe ser un entero no negativo.";
+    else if (
+      current.vehicleMileage != null &&
+      parsedMileage < Number(current.vehicleMileage)
+    )
+      validation = "El kilometraje no puede ser menor al actual del vehículo.";
+    else if (!delivery.operator.trim())
+      validation = "Ingresa el operador responsable.";
+    if (validation) {
+      setDelivery((value) => (value ? { ...value, error: validation } : value));
       return;
     }
-    const mileage = window.prompt(
-      "Kilometraje al entregar:",
-      String(current.initialMileage ?? current.vehicleMileage ?? ""),
+    setDelivery((value) =>
+      value ? { ...value, submitting: true, error: "" } : value,
     );
-    if (mileage === null) {
-      setDeliveryInProgress(null);
-      return;
-    }
-    const parsedMileage = Number(mileage);
-    if (!Number.isInteger(parsedMileage) || parsedMileage < 0) {
-      setMessage("El kilometraje debe ser un entero no negativo.");
-      setDeliveryInProgress(null);
-      return;
-    }
-    const operator = window.prompt(
-      "Identificador del operador:",
-      "operador-mostrador",
-    );
-    if (!operator?.trim()) {
-      setDeliveryInProgress(null);
-      return;
-    }
-    if (!window.confirm("¿Confirmar la entrega física del vehículo?")) {
-      setDeliveryInProgress(null);
-      return;
-    }
     try {
       if (!current.digitalCheckinAt && !current.deliveredAt) {
         await api({
@@ -848,9 +889,8 @@ function ReservationsAdmin() {
         data: {
           licencia_conducir: license,
           km_salida: parsedMileage,
-          tecnico_entrega: operator.trim(),
-          observaciones:
-            "Vehículo entregado físicamente con contrato y licencia firmada",
+          tecnico_entrega: delivery.operator.trim(),
+          observaciones: delivery.observations.trim() || undefined,
         },
       });
       const notification = result.booking_notification as Row | undefined;
@@ -859,15 +899,21 @@ function ReservationsAdmin() {
           ? "Entrega confirmada y Booking Central respondió acknowledged=true."
           : "Entrega registrada; la notificación a Booking quedó pendiente de reintento.",
       );
+      setDelivery(null);
       await load();
     } catch (reason) {
-      setMessage(
-        reason instanceof Error
-          ? reason.message
-          : "No fue posible confirmar la entrega",
+      setDelivery((value) =>
+        value
+          ? {
+              ...value,
+              submitting: false,
+              error:
+                reason instanceof Error
+                  ? reason.message
+                  : "No fue posible confirmar la entrega.",
+            }
+          : value,
       );
-    } finally {
-      setDeliveryInProgress(null);
     }
   }
   return (
@@ -943,19 +989,19 @@ function ReservationsAdmin() {
                           Cancelar
                         </Button>
                       )}
-                      {String(row.status) === "CONFIRMED" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={deliveryInProgress === String(row.id)}
-                          onClick={() => void confirmDelivery(row)}
-                        >
-                          {deliveryInProgress === String(row.id)
-                            ? "Procesando…"
-                            : row.deliveredAt
-                            ? "Reintentar notificación"
-                            : "Confirmar Entrega de Llaves / Check-in"}
-                        </Button>
+                      {String(row.status) === "CONFIRMED" &&
+                        !row.deliveredAt && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => void openDelivery(row)}
+                          >
+                            Confirmar Entrega de Llaves / Check-in
+                          </Button>
+                        )}
+                      {Boolean(row.deliveredAt) && (
+                        <span>Entrega confirmada</span>
                       )}
                     </td>
                   </tr>
@@ -1001,6 +1047,114 @@ function ReservationsAdmin() {
               {reservationValue(selected, key)}
             </p>
           ))}
+      </Modal>
+      <Modal
+        open={!!delivery}
+        onClose={() => {
+          if (!delivery?.submitting) setDelivery(null);
+        }}
+        title="Confirmar entrega de llaves / Check-in"
+      >
+        {delivery && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitDelivery();
+            }}
+          >
+            {delivery.loading ? (
+              <p role="status">Cargando datos de la reserva…</p>
+            ) : (
+              <>
+                {!delivery.detail.digitalCheckinAt && (
+                  <p role="status">
+                    Esta reserva requiere check-in digital previo. Se realizará
+                    automáticamente al confirmar, usando la identificación y la
+                    licencia asociadas.
+                  </p>
+                )}
+                <Input
+                  label="Licencia de conducir"
+                  value={delivery.license}
+                  onChange={(event) =>
+                    setDelivery((value) =>
+                      value
+                        ? { ...value, license: event.target.value, error: "" }
+                        : value,
+                    )
+                  }
+                  required
+                />
+                <Input
+                  label="Kilometraje de salida"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={delivery.mileage}
+                  onChange={(event) =>
+                    setDelivery((value) =>
+                      value
+                        ? { ...value, mileage: event.target.value, error: "" }
+                        : value,
+                    )
+                  }
+                  required
+                />
+                <Input
+                  label="Operador responsable"
+                  value={delivery.operator}
+                  onChange={(event) =>
+                    setDelivery((value) =>
+                      value
+                        ? { ...value, operator: event.target.value, error: "" }
+                        : value,
+                    )
+                  }
+                  required
+                />
+                <label className="field">
+                  <span>Observaciones</span>
+                  <textarea
+                    value={delivery.observations}
+                    onChange={(event) =>
+                      setDelivery((value) =>
+                        value
+                          ? {
+                              ...value,
+                              observations: event.target.value,
+                              error: "",
+                            }
+                          : value,
+                      )
+                    }
+                    rows={3}
+                  />
+                </label>
+              </>
+            )}
+            {delivery.error && (
+              <p className="form-error" role="alert">
+                {delivery.error}
+              </p>
+            )}
+            <div className="form-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={delivery.submitting}
+                onClick={() => setDelivery(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={delivery.loading || delivery.submitting}
+              >
+                {delivery.submitting ? "Confirmando…" : "Confirmar entrega"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   );
