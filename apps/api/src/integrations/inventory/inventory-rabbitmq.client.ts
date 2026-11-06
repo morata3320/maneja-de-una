@@ -32,6 +32,9 @@ export class InventoryRabbitMqClient implements OnApplicationShutdown {
         item_id: message.item_id,
         available_units: message.available_units,
         date: message.date,
+        time_slot: message.time_slot,
+        timestamp: message.timestamp,
+        slot_id: message.slot_id,
       }),
     );
 

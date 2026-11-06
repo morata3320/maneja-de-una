@@ -57,6 +57,9 @@ describe('InventoryRabbitMqClient', () => {
       item_id: 'TEST-VEHICLE',
       available_units: 0,
       date: '2026-10-30',
+      time_slot: '00:00-23:59',
+      timestamp: 1_798_755_200_000,
+      slot_id: 'TEST-VEHICLE:2026-10-30',
     });
     expect(ack).toMatchObject({ success: true, error_code: 'OK' });
   });

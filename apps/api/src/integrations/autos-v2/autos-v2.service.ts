@@ -134,6 +134,7 @@ ORDER BY created_at,id LIMIT $1`,
   }
 
   async catalog(category = 'ALL', transmission = 'ALL', limit = 10) {
+    await this.releaseCooldowns();
     const rows = await this.vehicleRows(
       undefined,
       undefined,
@@ -145,6 +146,7 @@ ORDER BY created_at,id LIMIT $1`,
   }
 
   async search(body: SearchAutosV2Dto) {
+    await this.releaseCooldowns();
     const start = this.dateTime(body.pickup_date, body.pickup_time);
     const end = this.dateTime(body.dropoff_date, body.dropoff_time);
     if (start >= end)
@@ -874,11 +876,12 @@ WHERE (id::text=$1 OR locator=$1) AND ($2 OR owner_id=$3) FOR UPDATE`,
         Array<{
           id: string;
           vehicle_id: string;
+          ends_at: Date;
           mileage: number;
           next_maintenance_km: number;
         }>
       >(`
-SELECT vc.id,vc.vehicle_id,v.mileage,v.next_maintenance_km FROM vehicle_cooldowns vc
+SELECT vc.id,vc.vehicle_id,vc.ends_at,v.mileage,v.next_maintenance_km FROM vehicle_cooldowns vc
 JOIN vehicles v ON v.id=vc.vehicle_id WHERE vc.completed_at IS NULL AND vc.ends_at<=now() FOR UPDATE OF vc,v`);
       for (const row of rows) {
         const state =
@@ -893,6 +896,15 @@ JOIN vehicles v ON v.id=vc.vehicle_id WHERE vc.completed_at IS NULL AND vc.ends_
           'UPDATE vehicles SET operational_status=$2,updated_at=now() WHERE id=$1',
           [row.vehicle_id, state],
         );
+        if (state === 'DISPONIBLE') {
+          await this.stockOutbox.enqueue(
+            m,
+            row.vehicle_id,
+            row.ends_at,
+            1,
+            `cooldown-release:${row.id}`,
+          );
+        }
       }
     });
   }
