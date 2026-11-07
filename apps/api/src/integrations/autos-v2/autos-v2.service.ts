@@ -34,6 +34,7 @@ type VehicleView = {
   mileage: number;
   next_maintenance_km: number;
   operational_status: string;
+  current_reservation: boolean;
 };
 
 @Injectable()
@@ -149,6 +150,8 @@ ORDER BY created_at,id LIMIT $1`,
     await this.releaseCooldowns();
     const start = this.dateTime(body.pickup_date, body.pickup_time);
     const end = this.dateTime(body.dropoff_date, body.dropoff_time);
+    if (start < new Date())
+      throw new ConflictException('No se permiten búsquedas retroactivas.');
     if (start >= end)
       throw new ConflictException(
         'La devolución debe ser posterior a la recogida.',
@@ -284,6 +287,8 @@ ORDER BY created_at,id LIMIT $1`,
       body.dropoff_date,
       body.hora_devolucion ?? '10:00',
     );
+    if (start < new Date())
+      throw new ConflictException('No se permiten reservas retroactivas.');
     if (start >= end)
       throw new ConflictException('Período de reserva inválido.');
     return this.db.transaction(async (m) => {
@@ -746,15 +751,23 @@ WHERE o.vehicle_id=$1 AND o.delivered_at IS NOT NULL AND o.returned_at IS NULL O
     await this.releaseCooldowns();
     return this.db.query<VehicleView[]>(
       `
-SELECT v.*,b.name brand,vm.name model,c.name category FROM vehicles v
+SELECT v.*,b.name brand,vm.name model,c.name category,
+ EXISTS(SELECT 1 FROM orders current_order
+   WHERE current_order.vehicle_id=v.id
+     AND current_order.status IN ('PENDING','CONFIRMED')
+     AND current_order.starts_at<=now() AND current_order.ends_at>now()
+ ) current_reservation
+FROM vehicles v
 JOIN brands b ON b.id=v.brand_id JOIN vehicle_models vm ON vm.id=v.model_id
 JOIN categories c ON c.id=v.category_id JOIN locations l ON l.id=v.location_id
 WHERE v.active AND ($1::text IS NULL OR v.id::text=$1)
  AND ($2='ALL' OR upper(c.name)=upper($2))
  AND ($3='ALL' OR upper(v.transmission)=upper($3) OR ($3='AUTOMATICO' AND upper(v.transmission)='AUTOMATIC'))
  AND ($4::text IS NULL OR lower(l.city)=lower($4) OR lower(l.name)=lower($4))
- AND v.operational_status NOT IN ('ENTREGADO','EN_LIMPIEZA','EN_MANTENIMIENTO')
+ AND v.operational_status NOT IN ('ENTREGADO','EN_MANTENIMIENTO')
+ AND ($5::timestamptz IS NOT NULL OR v.operational_status<>'EN_LIMPIEZA')
  AND ($5::timestamptz IS NULL OR NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$6 AND o.ends_at>$5))
+ AND ($5::timestamptz IS NULL OR NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=v.id AND vc.starts_at<$6 AND vc.ends_at>$5))
 ORDER BY v.price_per_day,v.id LIMIT $7`,
       [
         id ?? null,
@@ -770,6 +783,13 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
 
   private card(row: VehicleView, days = 1, surcharge = 1) {
     const daily = Number(row.price_per_day);
+    const state = row.current_reservation
+      ? ['DISPONIBLE', 'RESERVADO'].includes(row.operational_status)
+        ? 'RESERVADO'
+        : row.operational_status
+      : row.operational_status === 'RESERVADO'
+        ? 'DISPONIBLE'
+        : row.operational_status;
     return {
       vehicle_id: row.id,
       auto_id: row.id,
@@ -798,7 +818,7 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
       kilometraje_ilimitado: true,
       politica_combustible: 'LLENO_A_LLENO',
       cancelacion_gratuita: true,
-      estado: row.operational_status,
+      estado: state,
       kilometraje_actual: row.mileage,
       proximo_mantenimiento_km: row.next_maintenance_km,
       mantenimiento_requerido: row.mileage >= row.next_maintenance_km,
