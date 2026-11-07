@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../services/apiClient';
-import { ReservationsAdmin } from './AdminApi';
+import { AdminApiCollection, ReservationsAdmin } from './AdminApi';
 
 vi.mock('../services/apiClient', () => ({ api: vi.fn() }));
 
@@ -82,5 +82,117 @@ describe('ReservationsAdmin delivery check-in', () => {
     ).toBeTruthy();
     expect(screen.getByLabelText('Kilometraje de retorno')).toBeTruthy();
     expect(screen.getByLabelText('Nivel de combustible (%)')).toBeTruthy();
+  });
+});
+
+describe('VehiclesAdmin dependent selectors', () => {
+  it('filters models and depots, resets stale selections and submits a valid combination', async () => {
+    const pages: Record<string, unknown[]> = {
+      brands: [
+        { id: 'brand-a', name: 'Marca A' },
+        { id: 'brand-empty', name: 'Marca sin modelos' },
+      ],
+      'vehicle-models': [
+        { id: 'model-a', brandId: 'brand-a', name: 'Modelo A' },
+        { id: 'model-b', brandId: 'brand-b', name: 'Modelo B' },
+      ],
+      categories: [{ id: 'category-a', name: 'SUV' }],
+      locations: [
+        { id: 'location-a', name: 'Quito' },
+        { id: 'location-b', name: 'Guayaquil' },
+      ],
+      suppliers: [
+        { id: 1, name: 'Proveedor A' },
+        { id: 2, name: 'Proveedor B' },
+      ],
+      depots: [
+        {
+          id: 11,
+          supplierId: 1,
+          locationId: 'location-a',
+          name: 'Agencia A',
+        },
+        {
+          id: 22,
+          supplierId: 2,
+          locationId: 'location-b',
+          name: 'Agencia B',
+        },
+      ],
+    };
+    vi.mocked(api).mockImplementation(async ({ method, url, data }) => {
+      if (method === 'POST' && url === '/vehicles')
+        return { id: 'vehicle-created', ...data } as never;
+      const resource = String(url).split('?')[0]?.slice(1) ?? '';
+      if (resource === 'vehicles')
+        return { data: [], total: 0, page: 1, limit: 10 } as never;
+      if (resource in pages)
+        return {
+          data: pages[resource],
+          total: pages[resource]?.length ?? 0,
+        } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<AdminApiCollection resource="vehicles" title="Vehículos" />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Nuevo registro' }),
+    );
+
+    const model = screen.getByLabelText('Modelo');
+    const depot = screen.getByLabelText('Agencia');
+    expect(model).toHaveProperty('disabled', true);
+    expect(depot).toHaveProperty('disabled', true);
+
+    await user.selectOptions(screen.getByLabelText('Marca'), 'brand-a');
+    expect(await screen.findByRole('option', { name: 'Modelo A' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'Modelo B' })).toBeNull();
+    await user.selectOptions(model, 'model-a');
+    await user.selectOptions(screen.getByLabelText('Marca'), 'brand-empty');
+    expect(model).toHaveProperty('value', '');
+    expect(
+      screen.getByRole('option', { name: 'No hay opciones compatibles' }),
+    ).toBeTruthy();
+
+    await user.selectOptions(screen.getByLabelText('Marca'), 'brand-a');
+    await user.selectOptions(model, 'model-a');
+    await user.selectOptions(screen.getByLabelText('Categoría'), 'category-a');
+    await user.selectOptions(screen.getByLabelText('Proveedor'), '1');
+    expect(await screen.findByRole('option', { name: 'Agencia A' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'Agencia B' })).toBeNull();
+    await user.selectOptions(depot, '11');
+    expect(screen.getByLabelText('Ubicación')).toHaveProperty(
+      'value',
+      'location-a',
+    );
+
+    await user.type(screen.getByLabelText('Año'), '2026');
+    await user.type(screen.getByLabelText('Color'), 'Blanco');
+    await user.type(screen.getByLabelText('Placa'), 'AUD-1234');
+    await user.selectOptions(screen.getByLabelText('Transmisión'), 'AUTOMATIC');
+    await user.selectOptions(screen.getByLabelText('Combustible'), 'HYBRID');
+    await user.type(screen.getByLabelText('Asientos'), '5');
+    await user.type(screen.getByLabelText('Puertas'), '4');
+    await user.type(screen.getByLabelText('Maletas'), '2');
+    await user.type(screen.getByLabelText('Precio por día'), '50');
+    await user.type(screen.getByLabelText('Kilometraje'), '0');
+    await user.type(screen.getByLabelText('Cantidad / Stock'), '1');
+    await user.type(screen.getByLabelText('Descripción'), 'Prueba controlada');
+    await user.selectOptions(screen.getByLabelText('Estado'), 'AVAILABLE');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        url: '/vehicles',
+        data: expect.objectContaining({
+          brandId: 'brand-a',
+          modelId: 'model-a',
+          supplierId: '1',
+          depotId: '11',
+          locationId: 'location-a',
+        }),
+      }),
+    );
   });
 });

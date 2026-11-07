@@ -464,22 +464,48 @@ export function AdminDashboardApi() {
 function RelationSelect({
   field,
   value,
+  values,
   onChange,
 }: {
   field: Field;
   value: string;
-  onChange: (value: string) => void;
+  values: Record<string, string>;
+  onChange: (value: string, selected?: Row) => void;
 }) {
   const { data } = useCollection(`/${field.relation}?page=1&limit=100`);
+  const parentMissing =
+    (field.key === "modelId" && !values.brandId) ||
+    (field.key === "depotId" && !values.supplierId);
+  const options = data.filter((row) => {
+    if (field.key === "modelId")
+      return String(row.brandId ?? "") === values.brandId;
+    if (field.key === "depotId")
+      return String(row.supplierId ?? "") === values.supplierId;
+    return true;
+  });
   return (
     <Select
       label={field.label}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      disabled={parentMissing}
+      onChange={(e) =>
+        onChange(
+          e.target.value,
+          options.find((row) => idOf(row) === e.target.value),
+        )
+      }
       required={field.required}
     >
-      <option value="">Selecciona…</option>
-      {data.map((row) => (
+      <option value="">
+        {parentMissing
+          ? field.key === "modelId"
+            ? "Selecciona primero una marca"
+            : "Selecciona primero un proveedor"
+          : options.length
+            ? "Selecciona…"
+            : "No hay opciones compatibles"}
+      </option>
+      {options.map((row) => (
         <option key={idOf(row)} value={idOf(row)}>
           {display(row.name ?? row.airport ?? row.depotId)}
         </option>
@@ -514,8 +540,16 @@ function ResourceForm({
           : String(row[field.key]);
     setValues(next);
   }, [config.fields, row]);
-  const change = (key: string, value: string) =>
-    setValues((current) => ({ ...current, [key]: value }));
+  const change = (key: string, value: string, selected?: Row) =>
+    setValues((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "brandId" && value !== current.brandId) next.modelId = "";
+      if (key === "supplierId" && value !== current.supplierId)
+        next.depotId = "";
+      if (key === "depotId" && selected?.locationId)
+        next.locationId = String(selected.locationId);
+      return next;
+    });
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -556,7 +590,10 @@ function ResourceForm({
             key={field.key}
             field={field}
             value={values[field.key] ?? ""}
-            onChange={(value) => change(field.key, value)}
+            values={values}
+            onChange={(value, selected) =>
+              change(field.key, value, selected)
+            }
           />
         ) : field.type === "select" ? (
           <Select
