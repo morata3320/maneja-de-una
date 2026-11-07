@@ -241,8 +241,9 @@ export class V2Service {
     const c = this.catalogs[resource];
     if (!c) throw new NotFoundException();
     const { page, limit, offset } = pagination(query);
-    const search = query.search && c.fields.name ? ' WHERE name ILIKE $3' : '';
-    const args = search
+    const hasSearch = Boolean(query.search && c.fields.name);
+    const search = hasSearch ? ' WHERE name ILIKE $3' : '';
+    const args = hasSearch
       ? [limit, offset, `%${String(query.search)}%`]
       : [limit, offset];
     const rows = await this.db.query<Row[]>(
@@ -250,8 +251,8 @@ export class V2Service {
       args,
     );
     const [{ count }] = await this.db.query<Array<{ count: string }>>(
-      `SELECT count(*) count FROM ${c.table}${search}`,
-      search ? [`%${String(query.search)}%`] : [],
+      `SELECT count(*) count FROM ${c.table}${hasSearch ? ' WHERE name ILIKE $1' : ''}`,
+      hasSearch ? [`%${String(query.search)}%`] : [],
     );
     return { data: rows.map(expose), total: Number(count), page, limit };
   }
@@ -736,6 +737,26 @@ export class V2Service {
             );
           } else row = existing;
         } else {
+          const licensePlate = String(input.licensePlate);
+          await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+            `vehicle-create:${licensePlate}`,
+          ]);
+          const [existing] = await manager.query<Row[]>(
+            'SELECT * FROM vehicles WHERE license_plate=$1 FOR UPDATE',
+            [licensePlate],
+          );
+          if (existing) {
+            const sameRequest = entries.every(([key, value]) => {
+              const stored = existing[map[key]];
+              if (typeof value === 'number') return Number(stored) === value;
+              if (typeof value === 'boolean') return Boolean(stored) === value;
+              return String(stored) === String(value);
+            });
+            if (sameRequest) return String(existing.id);
+            throw new ConflictException(
+              'La placa ya está registrada para otro vehículo.',
+            );
+          }
           const newId = randomUUID();
           const [created] = await manager.query<Row[]>(
             `INSERT INTO vehicles(id,${cols.join(',')}) VALUES($1,${values.map((_, i) => `$${i + 2}`).join(',')}) RETURNING *`,
@@ -749,8 +770,18 @@ export class V2Service {
       });
       return this.vehicle(vehicleId);
     } catch (e) {
-      if ((e as { code?: string }).code?.startsWith('23'))
-        throw new ConflictException('Conflicto de integridad');
+      const databaseError = e as { code?: string; constraint?: string };
+      if (
+        databaseError.code === '23505' &&
+        databaseError.constraint === 'vehicles_license_plate_key'
+      )
+        throw new ConflictException('La placa ya está registrada.');
+      if (databaseError.code === '23503')
+        throw new ConflictException(
+          'Marca, modelo, categoría, proveedor o agencia incompatibles.',
+        );
+      if (databaseError.code?.startsWith('23'))
+        throw new ConflictException('Los datos incumplen una regla de integridad.');
       throw e;
     }
   }
