@@ -143,9 +143,27 @@ describe('VehiclesAdmin dependent selectors', () => {
     const depot = screen.getByLabelText('Agencia');
     expect(model).toHaveProperty('disabled', true);
     expect(depot).toHaveProperty('disabled', true);
+    expect(screen.getByText('Identificación y clasificación')).toBeTruthy();
+    expect(screen.getByText('Ubicación y operación')).toBeTruthy();
+    expect(screen.getByText('Características técnicas')).toBeTruthy();
+    expect(screen.getByText('Tarifa e inventario')).toBeTruthy();
+    expect(screen.getByLabelText('Placa').getAttribute('placeholder')).toBe(
+      'PBA-1234',
+    );
+    expect(
+      screen.getByLabelText('Precio por día').getAttribute('placeholder'),
+    ).toBe('45.00');
+    expect(
+      screen.getByText('Las opciones dependen de la marca seleccionada.'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('Las agencias dependen del proveedor seleccionado.'),
+    ).toBeTruthy();
 
     await user.selectOptions(screen.getByLabelText('Marca'), 'brand-a');
-    expect(await screen.findByRole('option', { name: 'Modelo A' })).toBeTruthy();
+    expect(
+      await screen.findByRole('option', { name: 'Modelo A' }),
+    ).toBeTruthy();
     expect(screen.queryByRole('option', { name: 'Modelo B' })).toBeNull();
     await user.selectOptions(model, 'model-a');
     await user.selectOptions(screen.getByLabelText('Marca'), 'brand-empty');
@@ -158,7 +176,9 @@ describe('VehiclesAdmin dependent selectors', () => {
     await user.selectOptions(model, 'model-a');
     await user.selectOptions(screen.getByLabelText('Categoría'), 'category-a');
     await user.selectOptions(screen.getByLabelText('Proveedor'), '1');
-    expect(await screen.findByRole('option', { name: 'Agencia A' })).toBeTruthy();
+    expect(
+      await screen.findByRole('option', { name: 'Agencia A' }),
+    ).toBeTruthy();
     expect(screen.queryByRole('option', { name: 'Agencia B' })).toBeNull();
     await user.selectOptions(depot, '11');
     expect(screen.getByLabelText('Ubicación')).toHaveProperty(
@@ -185,13 +205,28 @@ describe('VehiclesAdmin dependent selectors', () => {
       expect.objectContaining({
         method: 'POST',
         url: '/vehicles',
-        data: expect.objectContaining({
+        data: {
           brandId: 'brand-a',
           modelId: 'model-a',
+          categoryId: 'category-a',
           supplierId: '1',
           depotId: '11',
           locationId: 'location-a',
-        }),
+          year: 2026,
+          color: 'Blanco',
+          licensePlate: 'AUD-1234',
+          transmission: 'AUTOMATIC',
+          fuelType: 'HYBRID',
+          seats: 5,
+          doors: 4,
+          bagCapacity: 2,
+          pricePerDay: 50,
+          mileage: 0,
+          quantity: 1,
+          description: 'Prueba controlada',
+          status: 'AVAILABLE',
+          active: true,
+        },
       }),
     );
   });

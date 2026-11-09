@@ -53,6 +53,8 @@ type Field = {
   min?: number;
   max?: number;
   integer?: boolean;
+  placeholder?: string;
+  hint?: string;
 };
 const yesNo: Option[] = [
   { value: "true", label: "Activo" },
@@ -211,6 +213,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "select",
         relation: "vehicle-models",
         required: true,
+        hint: "Las opciones dependen de la marca seleccionada.",
       },
       {
         key: "categoryId",
@@ -218,6 +221,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "select",
         relation: "categories",
         required: true,
+        hint: "Selecciona la categoría registrada para el vehículo.",
       },
       {
         key: "locationId",
@@ -239,10 +243,23 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "select",
         relation: "depots",
         required: true,
+        hint: "Las agencias dependen del proveedor seleccionado.",
       },
-      { key: "year", label: "Año", type: "number", min: 1886, required: true },
-      { key: "color", label: "Color", required: true },
-      { key: "licensePlate", label: "Placa", required: true },
+      {
+        key: "year",
+        label: "Año",
+        type: "number",
+        min: 1886,
+        required: true,
+        placeholder: "2024",
+      },
+      { key: "color", label: "Color", required: true, placeholder: "Blanco" },
+      {
+        key: "licensePlate",
+        label: "Placa",
+        required: true,
+        placeholder: "PBA-1234",
+      },
       {
         key: "transmission",
         label: "Transmisión",
@@ -263,6 +280,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 1,
         required: true,
+        placeholder: "5",
       },
       {
         key: "doors",
@@ -270,6 +288,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 1,
         required: true,
+        placeholder: "4",
       },
       {
         key: "bagCapacity",
@@ -279,6 +298,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         max: 1000,
         integer: true,
         required: true,
+        placeholder: "2",
       },
       {
         key: "pricePerDay",
@@ -286,6 +306,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0.01,
         required: true,
+        placeholder: "45.00",
       },
       {
         key: "mileage",
@@ -293,6 +314,7 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0,
         required: true,
+        placeholder: "15000",
       },
       {
         key: "quantity",
@@ -300,8 +322,14 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
         type: "number",
         min: 0,
         required: true,
+        placeholder: "1",
       },
-      { key: "description", label: "Descripción", required: true },
+      {
+        key: "description",
+        label: "Descripción",
+        required: true,
+        placeholder: "Sedán automático de 5 pasajeros",
+      },
       {
         key: "status",
         label: "Estado",
@@ -319,6 +347,35 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
     ],
   },
 };
+const vehicleFieldGroups = [
+  {
+    title: "Identificación y clasificación",
+    description: "Datos principales con los que se identifica el vehículo.",
+    keys: ["brandId", "modelId", "categoryId", "year", "color", "licensePlate"],
+  },
+  {
+    title: "Ubicación y operación",
+    description: "Define dónde opera el vehículo y su estado actual.",
+    keys: ["supplierId", "depotId", "locationId", "status", "active"],
+  },
+  {
+    title: "Características técnicas",
+    description: "Capacidad y especificaciones para mostrar en el catálogo.",
+    keys: [
+      "transmission",
+      "fuelType",
+      "seats",
+      "doors",
+      "bagCapacity",
+      "mileage",
+    ],
+  },
+  {
+    title: "Tarifa e inventario",
+    description: "Precio, cantidad disponible y descripción comercial.",
+    keys: ["pricePerDay", "quantity", "description"],
+  },
+] as const;
 const labels: Record<string, string> = {
   image: "Imagen",
   firstName: "Nombres",
@@ -385,24 +442,27 @@ function useCollection(url: string) {
   const [result, setResult] = useState<Page>({ data: [], total: 0 });
   const [loading, setLoading] = useState(true),
     [error, setError] = useState("");
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError("");
-    try {
-      const value = await api<Page | Row[]>({ url });
-      setResult(
-        Array.isArray(value) ? { data: value, total: value.length } : value,
-      );
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "No fue posible cargar los datos",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [url]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      setError("");
+      try {
+        const value = await api<Page | Row[]>({ url });
+        setResult(
+          Array.isArray(value) ? { data: value, total: value.length } : value,
+        );
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "No fue posible cargar los datos",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [url],
+  );
   useEffect(() => {
     void load();
     const timer = window.setInterval(() => void load(true), 15_000);
@@ -466,11 +526,13 @@ function RelationSelect({
   value,
   values,
   onChange,
+  describedBy,
 }: {
   field: Field;
   value: string;
   values: Record<string, string>;
   onChange: (value: string, selected?: Row) => void;
+  describedBy?: string;
 }) {
   const { data } = useCollection(`/${field.relation}?page=1&limit=100`);
   const parentMissing =
@@ -495,6 +557,7 @@ function RelationSelect({
         )
       }
       required={field.required}
+      aria-describedby={describedBy}
     >
       <option value="">
         {parentMissing
@@ -582,47 +645,90 @@ function ResourceForm({
       setSaving(false);
     }
   }
+  const renderField = (field: Field) => {
+    const helpId = field.hint ? `vehicle-${field.key}-help` : undefined;
+    const control = field.relation ? (
+      <RelationSelect
+        field={field}
+        value={values[field.key] ?? ""}
+        values={values}
+        describedBy={helpId}
+        onChange={(value, selected) => change(field.key, value, selected)}
+      />
+    ) : field.type === "select" ? (
+      <Select
+        label={field.label}
+        value={values[field.key] ?? ""}
+        onChange={(e) => change(field.key, e.target.value)}
+        required={field.required}
+        aria-describedby={helpId}
+      >
+        <option value="">Selecciona…</option>
+        {field.options?.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </Select>
+    ) : (
+      <Input
+        label={field.label}
+        type={field.type ?? "text"}
+        value={values[field.key] ?? ""}
+        onChange={(e) => change(field.key, e.target.value)}
+        required={field.required || (field.key === "password" && !row)}
+        min={field.min}
+        max={field.max}
+        step={field.type === "number" ? (field.integer ? 1 : "any") : undefined}
+        placeholder={field.placeholder}
+        aria-describedby={helpId}
+      />
+    );
+    return (
+      <div
+        className={`vehicle-form-field${field.key === "description" ? " vehicle-form-field-wide" : ""}`}
+        key={field.key}
+      >
+        {control}
+        {field.hint && (
+          <small className="field-help" id={helpId}>
+            {field.hint}
+          </small>
+        )}
+      </div>
+    );
+  };
   return (
-    <form className="stack" onSubmit={save}>
-      {config.fields.map((field) =>
-        field.relation ? (
-          <RelationSelect
-            key={field.key}
-            field={field}
-            value={values[field.key] ?? ""}
-            values={values}
-            onChange={(value, selected) =>
-              change(field.key, value, selected)
-            }
-          />
-        ) : field.type === "select" ? (
-          <Select
-            key={field.key}
-            label={field.label}
-            value={values[field.key] ?? ""}
-            onChange={(e) => change(field.key, e.target.value)}
-            required={field.required}
-          >
-            <option value="">Selecciona…</option>
-            {field.options?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+    <form
+      className={`stack${resource === "vehicles" ? " vehicle-admin-form" : ""}`}
+      onSubmit={save}
+    >
+      {resource === "vehicles" ? (
+        <>
+          <p className="vehicle-form-required-note">
+            Los campos marcados con <span aria-hidden="true">*</span> son
+            obligatorios.
+          </p>
+          <div className="vehicle-form-sections">
+            {vehicleFieldGroups.map((group) => (
+              <fieldset className="vehicle-form-section" key={group.title}>
+                <legend>{group.title}</legend>
+                <p className="vehicle-form-section-description">
+                  {group.description}
+                </p>
+                <div className="vehicle-form-grid">
+                  {group.keys.map((key) =>
+                    renderField(
+                      config.fields.find((field) => field.key === key)!,
+                    ),
+                  )}
+                </div>
+              </fieldset>
             ))}
-          </Select>
-        ) : (
-          <Input
-            key={field.key}
-            label={field.label}
-            type={field.type ?? "text"}
-            value={values[field.key] ?? ""}
-            onChange={(e) => change(field.key, e.target.value)}
-            required={field.required || (field.key === "password" && !row)}
-            min={field.min}
-            max={field.max}
-            step={field.type === "number" ? (field.integer ? 1 : "any") : undefined}
-          />
-        ),
+          </div>
+        </>
+      ) : (
+        config.fields.map(renderField)
       )}
       {error && (
         <p className="form-error" role="alert">
@@ -817,11 +923,13 @@ export function ReservationsAdmin() {
       if (value === "CONFIRMED")
         return row.digitalCheckinAt ? "PENDIENTE_ENTREGA" : "RESERVADO";
       return (
-        ({
-          PENDING: "RESERVADO",
-          CANCELLED: "CANCELADA",
-          COMPLETED: "COMPLETADA",
-        } as Record<string, string>)[String(value)] ?? display(value)
+        (
+          {
+            PENDING: "RESERVADO",
+            CANCELLED: "CANCELADA",
+            COMPLETED: "COMPLETADA",
+          } as Record<string, string>
+        )[String(value)] ?? display(value)
       );
     }
     if (["startsAt", "endsAt", "createdAt"].includes(column) && value)
@@ -973,7 +1081,9 @@ export function ReservationsAdmin() {
       loading: true,
       submitting: false,
       error: "",
-      mileage: String(row.finalMileage ?? row.vehicleMileage ?? row.initialMileage ?? ""),
+      mileage: String(
+        row.finalMileage ?? row.vehicleMileage ?? row.initialMileage ?? "",
+      ),
       fuel: "100",
       observations: "Vehículo recibido y enviado a limpieza",
     });
@@ -1170,7 +1280,9 @@ export function ReservationsAdmin() {
                           Devolver vehículo
                         </Button>
                       )}
-                      {Boolean(row.returnedAt) && <span>Vehículo devuelto</span>}
+                      {Boolean(row.returnedAt) && (
+                        <span>Vehículo devuelto</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1411,9 +1523,7 @@ export function ReservationsAdmin() {
                 type="submit"
                 disabled={returning.loading || returning.submitting}
               >
-                {returning.submitting
-                  ? "Registrando…"
-                  : "Confirmar devolución"}
+                {returning.submitting ? "Registrando…" : "Confirmar devolución"}
               </Button>
             </div>
           </form>

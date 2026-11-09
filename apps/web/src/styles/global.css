@@ -1193,6 +1193,82 @@ button:disabled {
 .modal-content {
   padding: 28px;
 }
+.modal:has(.vehicle-admin-form) {
+  width: min(920px, calc(100% - 32px));
+}
+.vehicle-admin-form {
+  gap: 20px;
+}
+.vehicle-form-required-note {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: -4px 0 0;
+}
+.vehicle-form-required-note span,
+.vehicle-admin-form .vehicle-form-field:has([required]) .field > span::after {
+  color: #b42318;
+}
+.vehicle-admin-form .vehicle-form-field:has([required]) .field > span::after {
+  content: " *";
+}
+.vehicle-form-sections {
+  display: grid;
+  gap: 16px;
+}
+.vehicle-form-section {
+  background: color-mix(
+    in srgb,
+    var(--color-surface) 92%,
+    var(--color-primary) 8%
+  );
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 18px;
+}
+.vehicle-form-section legend {
+  color: var(--color-text);
+  font-size: 15px;
+  margin: 0;
+  padding: 0 6px;
+}
+.vehicle-form-section-description {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+.vehicle-form-grid {
+  display: grid;
+  gap: 16px 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.vehicle-form-field {
+  min-width: 0;
+}
+.vehicle-form-field-wide {
+  grid-column: 1 / -1;
+}
+.field-help {
+  color: var(--color-text-secondary);
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+.vehicle-admin-form .field select:disabled {
+  background: color-mix(
+    in srgb,
+    var(--color-surface) 88%,
+    var(--color-border) 12%
+  );
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+.vehicle-admin-form > .inline-actions {
+  border-top: 1px solid var(--color-border);
+  justify-content: flex-end;
+  padding-top: 18px;
+}
 .modal header {
   display: flex;
   align-items: center;
@@ -2474,6 +2550,18 @@ button:disabled {
   }
 }
 @media (max-width: 599px) {
+  .modal:has(.vehicle-admin-form) .modal-content {
+    padding: 20px 16px;
+  }
+  .vehicle-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vehicle-form-section {
+    padding: 15px 12px;
+  }
+  .vehicle-form-field-wide {
+    grid-column: auto;
+  }
   .container {
     width: calc(100% - 36px);
   }
