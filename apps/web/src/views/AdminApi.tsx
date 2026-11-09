@@ -711,8 +711,8 @@ function ResourceForm({
           </p>
           <div className="vehicle-form-sections">
             {vehicleFieldGroups.map((group) => (
-              <fieldset className="vehicle-form-section" key={group.title}>
-                <legend>{group.title}</legend>
+              <section className="vehicle-form-section" key={group.title}>
+                <h3 className="vehicle-form-section-title">{group.title}</h3>
                 <p className="vehicle-form-section-description">
                   {group.description}
                 </p>
@@ -723,7 +723,7 @@ function ResourceForm({
                     ),
                   )}
                 </div>
-              </fieldset>
+              </section>
             ))}
           </div>
         </>
