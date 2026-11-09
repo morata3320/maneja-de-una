@@ -1223,9 +1223,11 @@ button:disabled {
   );
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
 }
-.vehicle-form-section-title {
+.modal .vehicle-form-section-title {
   color: var(--color-text);
   font-size: 15px;
   font-weight: 650;
@@ -1234,7 +1236,7 @@ button:disabled {
   padding: 0;
   text-align: left;
 }
-.vehicle-form-section-description {
+.modal .vehicle-form-section-description {
   color: var(--color-text-secondary);
   font-size: 12px;
   line-height: 1.45;
