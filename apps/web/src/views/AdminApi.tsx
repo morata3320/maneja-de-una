@@ -882,6 +882,7 @@ function ResourceForm({
         max={field.max}
         step={field.type === "number" ? (field.integer ? 1 : "any") : undefined}
         placeholder={field.placeholder}
+        autoComplete={field.key === "quantity" ? "off" : undefined}
         aria-describedby={helpId}
       />
     );
@@ -1052,6 +1053,7 @@ function CrudCollection({
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [editing, setEditing] = useState<Row | null | undefined>(undefined),
+    [formRevision, setFormRevision] = useState(0),
     [message, setMessage] = useState("");
   const query = useMemo(
     () =>
@@ -1085,7 +1087,14 @@ function CrudCollection({
         title={title}
         description="Gestión conectada a API V2."
         action={
-          <Button onClick={() => setEditing(null)}>Nuevo registro</Button>
+          <Button
+            onClick={() => {
+              setFormRevision((current) => current + 1);
+              setEditing(null);
+            }}
+          >
+            Nuevo registro
+          </Button>
         }
       />
       <Card>
@@ -1177,6 +1186,11 @@ function CrudCollection({
       >
         {editing !== undefined && (
           <ResourceForm
+            key={
+              editing
+                ? `${resource}:edit:${idOf(editing)}`
+                : `${resource}:new:${formRevision}`
+            }
             resource={resource}
             row={editing}
             onSaved={() => void load()}
