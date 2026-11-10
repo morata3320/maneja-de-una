@@ -113,6 +113,15 @@ const reservationView = (row: Row) => {
           lastName: scalarText(row.customer_last_name),
           email: scalarText(row.customer_email),
         };
+  const bookingClient =
+    row.booking_client_id == null
+      ? null
+      : {
+          id: scalarText(row.booking_client_id) ?? '',
+          name: scalarText(row.booking_client_name),
+          email: scalarText(row.booking_client_email),
+          identification: scalarText(row.booking_client_identification),
+        };
   const payment =
     row.payment_reference == null && row.payment_status == null
       ? null
@@ -141,9 +150,12 @@ const reservationView = (row: Row) => {
     vehicle,
     customer,
     vehicleName: vehicle?.name ?? null,
-    customerName: customer
-      ? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
-      : null,
+    customerName:
+      bookingClient?.name ??
+      (customer
+        ? [customer.firstName, customer.lastName].filter(Boolean).join(' ')
+        : null),
+    origin: bookingClient ? 'BOOKING' : 'WEB',
     payment,
     paymentStatus: payment?.status ?? null,
     paymentReference: payment?.paymentReference ?? null,
@@ -960,7 +972,7 @@ export class V2Service {
       );
       const rows = await this.db.query<Row[]>(
         `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
-          bc.id booking_client_id,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
+          bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
           u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
           v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
           d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
@@ -984,8 +996,8 @@ export class V2Service {
   }
   async reservation(user: PublicUser, id: string) {
     const [r] = await this.db.query<Row[]>(
-      `SELECT o.id,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
-        bc.id booking_client_id,bc.identification booking_client_identification,bc.license booking_client_license,
+      `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
+        bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
         u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
         v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
         d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,

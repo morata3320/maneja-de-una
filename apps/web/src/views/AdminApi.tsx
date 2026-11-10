@@ -414,6 +414,7 @@ const labels: Record<string, string> = {
   digitalCheckinAt: "Check-in digital",
   deliveredAt: "Entregado",
   bookingClientId: "Cliente Booking",
+  origin: "Origen",
 };
 const idOf = (row: Row) => String(row.id ?? row.depotId ?? "");
 const display = (value: unknown) =>
@@ -1215,6 +1216,7 @@ export function ReservationsAdmin() {
     columns = [
       "locator",
       "customerName",
+      "origin",
       "vehicleName",
       "startsAt",
       "endsAt",
@@ -1241,6 +1243,8 @@ export function ReservationsAdmin() {
         )[String(value)] ?? display(value)
       );
     }
+    if (column === "origin")
+      return value === "BOOKING" ? "Booking Central" : "Web";
     if (["startsAt", "endsAt", "createdAt"].includes(column) && value)
       return new Date(String(value)).toLocaleString();
     if (column === "totalAmount" && value != null)

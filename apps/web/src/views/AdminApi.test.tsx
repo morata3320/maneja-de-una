@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../services/apiClient';
@@ -11,6 +11,16 @@ const incompleteReservation = {
   locator: 'MDU-AUDIT',
   status: 'CONFIRMED',
   createdAt: '2026-11-06T14:43:59.000Z',
+};
+
+const visibleBookingReservation = {
+  ...incompleteReservation,
+  locator: 'MDU-BOOKING1',
+  customerName: 'Cliente Booking',
+  origin: 'BOOKING',
+  vehicleName: 'Toyota RAV4',
+  bookingClientId: '40000000-0000-4000-8000-000000000010',
+  bookingClientIdentification: '1712345678',
 };
 
 describe('ReservationsAdmin delivery check-in', () => {
@@ -29,6 +39,42 @@ describe('ReservationsAdmin delivery check-in', () => {
       }
       throw new Error(`Solicitud inesperada: ${String(url)}`);
     });
+  });
+
+  it('shows and searches a Booking reservation with its local delivery id', async () => {
+    vi.mocked(api).mockImplementation(async ({ url }) => {
+      if (String(url).startsWith('/reservations?'))
+        return {
+          data: [visibleBookingReservation],
+          total: 1,
+          page: 1,
+          limit: 10,
+        } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<ReservationsAdmin />);
+
+    expect(await screen.findByText('MDU-BOOKING1')).toBeTruthy();
+    expect(screen.getByText('Cliente Booking')).toBeTruthy();
+    expect(screen.getByText('Booking Central')).toBeTruthy();
+    expect(
+      screen.getByRole('button', {
+        name: 'Confirmar Entrega de Llaves / Check-in',
+      }),
+    ).toBeTruthy();
+
+    await user.type(
+      screen.getByLabelText('Código, cédula o email'),
+      '1712345678',
+    );
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining('search=1712345678'),
+        }),
+      ),
+    );
   });
 
   it('abre el formulario aunque la fila no incluya los datos de entrega', async () => {

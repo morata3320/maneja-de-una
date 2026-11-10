@@ -59,6 +59,65 @@ describe('V2Service admin catalogs and vehicles', () => {
     });
   });
 
+  it('exposes Booking reservations with their client name and origin', async () => {
+    const orderId = '20000000-0000-4000-8000-000000000010';
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ count: '1' }])
+      .mockResolvedValueOnce([
+        {
+          id: orderId,
+          locator: 'MDU-BOOKING1',
+          status: 'CONFIRMED',
+          starts_at: new Date('2026-11-11T15:00:00.000Z'),
+          ends_at: new Date('2026-11-12T15:00:00.000Z'),
+          total_amount: '25.00',
+          currency: 'USD',
+          created_at: new Date('2026-11-10T15:00:00.000Z'),
+          updated_at: new Date('2026-11-10T15:00:00.000Z'),
+          vehicle_id: '30000000-0000-4000-8000-000000000010',
+          owner_id: 'booking-api-key',
+          route: {},
+          booking_client_id: '40000000-0000-4000-8000-000000000010',
+          booking_client_name: 'Cliente Booking',
+          booking_client_email: 'cliente@example.com',
+          booking_client_identification: '1712345678',
+          booking_client_license: 'LIC-123',
+          related_vehicle_id: '30000000-0000-4000-8000-000000000010',
+          vehicle_brand: 'Toyota',
+          vehicle_model: 'RAV4',
+        },
+      ]);
+    const service = new V2Service({ query } as unknown as DataSource);
+
+    await expect(
+      service.reservations(
+        {
+          id: '10000000-0000-4000-8000-000000000900',
+          email: 'admin@maneja.local',
+          role: 'ADMIN',
+          status: 'ACTIVE',
+        },
+        true,
+        { page: 1, limit: 10 },
+      ),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: orderId,
+          locator: 'MDU-BOOKING1',
+          customerName: 'Cliente Booking',
+          origin: 'BOOKING',
+          bookingClientId: '40000000-0000-4000-8000-000000000010',
+        },
+      ],
+      total: 1,
+    });
+    expect(String(query.mock.calls[1][0])).toContain(
+      'bc.name booking_client_name',
+    );
+  });
+
   it('uses the correct placeholder when counting a filtered brand list', async () => {
     const query = jest
       .fn()
