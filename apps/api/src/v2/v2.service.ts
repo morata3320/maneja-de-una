@@ -461,10 +461,31 @@ export class V2Service {
     return userView(row);
   }
   async deleteUser(id: string) {
-    const result = await this.db.query('DELETE FROM users WHERE id::text=$1', [
-      id,
-    ]);
-    if (!result[1]) throw new NotFoundException();
+    const [user] = await this.db.query<Row[]>(
+      'SELECT id,role FROM users WHERE id::text=$1',
+      [id],
+    );
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (user.role === 'ADMIN')
+      throw new ForbiddenException('No se puede eliminar una cuenta administradora.');
+    try {
+      const rows = await this.db.query<Row[]>(
+        'DELETE FROM users WHERE id::text=$1 RETURNING id',
+        [id],
+      );
+      if (!rows.length) throw new NotFoundException('Usuario no encontrado');
+    } catch (error) {
+      const databaseError = error as {
+        code?: string;
+        driverError?: { code?: string };
+      };
+      const code = databaseError.code ?? databaseError.driverError?.code;
+      if (code === '23503')
+        throw new ConflictException(
+          'No se puede eliminar el usuario porque tiene registros asociados.',
+        );
+      throw error;
+    }
   }
 
   async vehicles(query: Record<string, unknown>) {

@@ -7,6 +7,58 @@ describe('V2Service admin catalogs and vehicles', () => {
     process.env.INTERNAL_JWT_SECRET = 'test-secret-with-at-least-32-characters';
   });
 
+  describe('deleteUser', () => {
+    it('returns a controlled conflict when PostgreSQL reports associated records', async () => {
+      const query = jest
+        .fn()
+        .mockResolvedValueOnce([
+          { id: '10000000-0000-4000-8000-000000000001', role: 'USER' },
+        ])
+        .mockRejectedValueOnce({
+          code: '23503',
+          constraint: 'payments_user_id_fkey',
+        });
+      const service = new V2Service({ query } as unknown as DataSource);
+
+      await expect(
+        service.deleteUser('10000000-0000-4000-8000-000000000001'),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'No se puede eliminar el usuario porque tiene registros asociados.',
+      });
+    });
+
+    it('keeps administrator accounts protected', async () => {
+      const query = jest.fn().mockResolvedValueOnce([
+        { id: '10000000-0000-4000-8000-000000000002', role: 'ADMIN' },
+      ]);
+      const service = new V2Service({ query } as unknown as DataSource);
+
+      await expect(
+        service.deleteUser('10000000-0000-4000-8000-000000000002'),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: 'No se puede eliminar una cuenta administradora.',
+      });
+      expect(query).toHaveBeenCalledTimes(1);
+    });
+
+    it('deletes an unreferenced regular user', async () => {
+      const id = '10000000-0000-4000-8000-000000000003';
+      const query = jest
+        .fn()
+        .mockResolvedValueOnce([{ id, role: 'USER' }])
+        .mockResolvedValueOnce([{ id }]);
+      const service = new V2Service({ query } as unknown as DataSource);
+
+      await expect(service.deleteUser(id)).resolves.toBeUndefined();
+      expect(query).toHaveBeenLastCalledWith(
+        'DELETE FROM users WHERE id::text=$1 RETURNING id',
+        [id],
+      );
+    });
+  });
+
   it('uses the correct placeholder when counting a filtered brand list', async () => {
     const query = jest
       .fn()
