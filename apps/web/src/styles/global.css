@@ -1250,6 +1250,20 @@ button:disabled {
 .vehicle-form-field {
   min-width: 0;
 }
+.vehicle-catalog-create-button {
+  margin-top: 8px;
+  min-height: 32px;
+  padding: 6px 10px;
+}
+.vehicle-catalog-create-modal {
+  gap: 16px;
+}
+.vehicle-catalog-create-modal .field-help {
+  margin: -8px 0 0;
+}
+.vehicle-catalog-create-actions {
+  justify-content: flex-end;
+}
 .vehicle-form-field-wide {
   grid-column: 1 / -1;
 }
@@ -1622,6 +1636,11 @@ button:disabled {
 .form-error {
   color: var(--color-danger) !important;
   font-size: 12px !important;
+}
+.form-success {
+  color: var(--color-success) !important;
+  font-size: 12px !important;
+  font-weight: 650;
 }
 .comparison-scroll {
   overflow-x: auto;

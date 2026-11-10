@@ -8,6 +8,7 @@ import {
   PageHeader,
   Select,
 } from "../components/ui";
+import { Icon } from "../components/ui/Icon";
 import { api } from "../services/apiClient";
 import {
   getVehicleImage,
@@ -37,6 +38,12 @@ type ReturnFormState = {
   mileage: string;
   fuel: string;
   observations: string;
+};
+type CatalogCreationState = {
+  kind: "brand" | "model";
+  name: string;
+  saving: boolean;
+  error: string;
 };
 const autosV3Base = (
   import.meta.env.VITE_API_URL || "http://localhost:3000/api/v2"
@@ -527,18 +534,25 @@ function RelationSelect({
   values,
   onChange,
   describedBy,
+  additionalOptions = [],
 }: {
   field: Field;
   value: string;
   values: Record<string, string>;
   onChange: (value: string, selected?: Row) => void;
   describedBy?: string;
+  additionalOptions?: Row[];
 }) {
   const { data } = useCollection(`/${field.relation}?page=1&limit=100`);
+  const availableData = useMemo(() => {
+    const rows = new Map<string, Row>();
+    for (const row of [...data, ...additionalOptions]) rows.set(idOf(row), row);
+    return [...rows.values()];
+  }, [additionalOptions, data]);
   const parentMissing =
     (field.key === "modelId" && !values.brandId) ||
     (field.key === "depotId" && !values.supplierId);
-  const options = data.filter((row) => {
+  const options = availableData.filter((row) => {
     if (field.key === "modelId")
       return String(row.brandId ?? "") === values.brandId;
     if (field.key === "depotId")
@@ -591,7 +605,13 @@ function ResourceForm({
   const config = configurations[resource];
   const [values, setValues] = useState<Record<string, string>>({}),
     [saving, setSaving] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [catalogCreation, setCatalogCreation] =
+      useState<CatalogCreationState | null>(null),
+    [catalogNotice, setCatalogNotice] = useState(""),
+    [additionalOptions, setAdditionalOptions] = useState<Record<string, Row[]>>(
+      {},
+    );
   useEffect(() => {
     const next: Record<string, string> = {};
     for (const field of config.fields)
@@ -613,6 +633,94 @@ function ResourceForm({
         next.locationId = String(selected.locationId);
       return next;
     });
+  const openCatalogCreation = (kind: "brand" | "model") => {
+    setCatalogNotice("");
+    if (kind === "model" && !values.brandId) {
+      setError("Selecciona una marca antes de crear un modelo.");
+      return;
+    }
+    setError("");
+    setCatalogCreation({ kind, name: "", saving: false, error: "" });
+  };
+  const createCatalogEntry = async () => {
+    if (!catalogCreation) return;
+    const name = catalogCreation.name.trim();
+    if (!name) {
+      setCatalogCreation((current) =>
+        current ? { ...current, error: "El nombre es obligatorio." } : current,
+      );
+      return;
+    }
+    const relation =
+      catalogCreation.kind === "brand" ? "brands" : "vehicle-models";
+    setCatalogCreation((current) =>
+      current ? { ...current, saving: true, error: "" } : current,
+    );
+    try {
+      const current = await api<Page | Row[]>({
+        url: `/${relation}?page=1&limit=100`,
+      });
+      const rows = Array.isArray(current) ? current : current.data;
+      const duplicate = rows.some(
+        (item) =>
+          String(item.name ?? "")
+            .trim()
+            .toLocaleLowerCase() === name.toLocaleLowerCase() &&
+          (catalogCreation.kind === "brand" ||
+            String(item.brandId ?? "") === values.brandId),
+      );
+      if (duplicate) {
+        setCatalogCreation((currentState) =>
+          currentState
+            ? {
+                ...currentState,
+                saving: false,
+                error:
+                  catalogCreation.kind === "brand"
+                    ? "Ya existe una marca con ese nombre."
+                    : "Ya existe ese modelo para la marca seleccionada.",
+              }
+            : currentState,
+        );
+        return;
+      }
+      const data =
+        catalogCreation.kind === "brand"
+          ? { name, active: true }
+          : { name, brandId: values.brandId, active: true };
+      const created = await api<Row>({
+        method: "POST",
+        url: `/${relation}`,
+        data,
+      });
+      setAdditionalOptions((currentOptions) => ({
+        ...currentOptions,
+        [relation]: [...(currentOptions[relation] ?? []), created],
+      }));
+      if (catalogCreation.kind === "brand")
+        change("brandId", idOf(created), created);
+      else change("modelId", idOf(created), created);
+      setCatalogNotice(
+        catalogCreation.kind === "brand"
+          ? `Marca “${name}” creada y seleccionada.`
+          : `Modelo “${name}” creado y seleccionado.`,
+      );
+      setCatalogCreation(null);
+    } catch (reason) {
+      setCatalogCreation((current) =>
+        current
+          ? {
+              ...current,
+              saving: false,
+              error:
+                reason instanceof Error
+                  ? reason.message
+                  : "No fue posible crear el registro.",
+            }
+          : current,
+      );
+    }
+  };
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -653,6 +761,7 @@ function ResourceForm({
         value={values[field.key] ?? ""}
         values={values}
         describedBy={helpId}
+        additionalOptions={additionalOptions[field.relation] ?? []}
         onChange={(value, selected) => change(field.key, value, selected)}
       />
     ) : field.type === "select" ? (
@@ -684,12 +793,33 @@ function ResourceForm({
         aria-describedby={helpId}
       />
     );
+    const quickCreateKind =
+      resource === "vehicles" && field.key === "brandId"
+        ? "brand"
+        : resource === "vehicles" && field.key === "modelId"
+          ? "model"
+          : null;
     return (
       <div
         className={`vehicle-form-field${field.key === "description" ? " vehicle-form-field-wide" : ""}`}
         key={field.key}
       >
         {control}
+        {quickCreateKind && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="vehicle-catalog-create-button"
+            aria-label={
+              quickCreateKind === "brand" ? "+ Nueva marca" : "+ Nuevo modelo"
+            }
+            onClick={() => openCatalogCreation(quickCreateKind)}
+          >
+            <Icon name="plus" size={14} />
+            {quickCreateKind === "brand" ? "Nueva marca" : "Nuevo modelo"}
+          </Button>
+        )}
         {field.hint && (
           <small className="field-help" id={helpId}>
             {field.hint}
@@ -699,51 +829,119 @@ function ResourceForm({
     );
   };
   return (
-    <form
-      className={`stack${resource === "vehicles" ? " vehicle-admin-form" : ""}`}
-      onSubmit={save}
-    >
-      {resource === "vehicles" ? (
-        <>
-          <p className="vehicle-form-required-note">
-            Los campos marcados con <span aria-hidden="true">*</span> son
-            obligatorios.
+    <>
+      <form
+        className={`stack${resource === "vehicles" ? " vehicle-admin-form" : ""}`}
+        onSubmit={save}
+      >
+        {resource === "vehicles" ? (
+          <>
+            <p className="vehicle-form-required-note">
+              Los campos marcados con <span aria-hidden="true">*</span> son
+              obligatorios.
+            </p>
+            <div className="vehicle-form-sections">
+              {vehicleFieldGroups.map((group) => (
+                <section className="vehicle-form-section" key={group.title}>
+                  <h3 className="vehicle-form-section-title">{group.title}</h3>
+                  <p className="vehicle-form-section-description">
+                    {group.description}
+                  </p>
+                  <div className="vehicle-form-grid">
+                    {group.keys.map((key) =>
+                      renderField(
+                        config.fields.find((field) => field.key === key)!,
+                      ),
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </>
+        ) : (
+          config.fields.map(renderField)
+        )}
+        {catalogNotice && (
+          <p className="form-success" role="status">
+            {catalogNotice}
           </p>
-          <div className="vehicle-form-sections">
-            {vehicleFieldGroups.map((group) => (
-              <section className="vehicle-form-section" key={group.title}>
-                <h3 className="vehicle-form-section-title">{group.title}</h3>
-                <p className="vehicle-form-section-description">
-                  {group.description}
-                </p>
-                <div className="vehicle-form-grid">
-                  {group.keys.map((key) =>
-                    renderField(
-                      config.fields.find((field) => field.key === key)!,
-                    ),
-                  )}
-                </div>
-              </section>
-            ))}
+        )}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="inline-actions">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </form>
+      <Modal
+        open={catalogCreation !== null}
+        onClose={() => {
+          if (!catalogCreation?.saving) setCatalogCreation(null);
+        }}
+        title={
+          catalogCreation?.kind === "model" ? "Nuevo modelo" : "Nueva marca"
+        }
+      >
+        {catalogCreation && (
+          <div className="stack vehicle-catalog-create-modal">
+            <Input
+              label={
+                catalogCreation.kind === "brand"
+                  ? "Nombre de la marca"
+                  : "Nombre del modelo"
+              }
+              placeholder={
+                catalogCreation.kind === "brand" ? "Toyota" : "Corolla"
+              }
+              value={catalogCreation.name}
+              onChange={(event) =>
+                setCatalogCreation((current) =>
+                  current
+                    ? { ...current, name: event.target.value, error: "" }
+                    : current,
+                )
+              }
+              disabled={catalogCreation.saving}
+              autoFocus
+            />
+            {catalogCreation.kind === "model" && (
+              <p className="field-help">
+                El modelo se asociará a la marca seleccionada.
+              </p>
+            )}
+            {catalogCreation.error && (
+              <p className="form-error" role="alert">
+                {catalogCreation.error}
+              </p>
+            )}
+            <div className="inline-actions vehicle-catalog-create-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={catalogCreation.saving}
+                onClick={() => setCatalogCreation(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={catalogCreation.saving}
+                onClick={() => void createCatalogEntry()}
+              >
+                {catalogCreation.saving ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
           </div>
-        </>
-      ) : (
-        config.fields.map(renderField)
-      )}
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="inline-actions">
-        <Button type="button" variant="ghost" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Guardando…" : "Guardar"}
-        </Button>
-      </div>
-    </form>
+        )}
+      </Modal>
+    </>
   );
 }
 

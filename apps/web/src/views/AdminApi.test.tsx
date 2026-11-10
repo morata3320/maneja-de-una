@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../services/apiClient';
@@ -228,6 +228,102 @@ describe('VehiclesAdmin dependent selectors', () => {
           active: true,
         },
       }),
+    );
+  });
+
+  it('creates and selects brands and models through the existing admin endpoints', async () => {
+    const pages: Record<string, Array<Record<string, unknown>>> = {
+      brands: [{ id: 'brand-a', name: 'Marca A', active: true }],
+      'vehicle-models': [
+        { id: 'model-a', brandId: 'brand-a', name: 'Modelo A', active: true },
+      ],
+      categories: [{ id: 'category-a', name: 'SUV' }],
+      locations: [{ id: 'location-a', name: 'Quito' }],
+      suppliers: [{ id: 1, name: 'Proveedor A' }],
+      depots: [],
+    };
+    vi.mocked(api).mockImplementation(async ({ method, url, data }) => {
+      if (method === 'POST' && url === '/brands') {
+        const created = { id: 'brand-new', ...data };
+        pages.brands.push(created);
+        return created as never;
+      }
+      if (method === 'POST' && url === '/vehicle-models') {
+        const created = { id: 'model-new', ...data };
+        pages['vehicle-models'].push(created);
+        return created as never;
+      }
+      const resource = String(url).split('?')[0]?.slice(1) ?? '';
+      if (resource === 'vehicles')
+        return { data: [], total: 0, page: 1, limit: 10 } as never;
+      if (resource in pages)
+        return {
+          data: pages[resource],
+          total: pages[resource].length,
+        } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<AdminApiCollection resource="vehicles" title="Vehículos" />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Nuevo registro' }),
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ Nuevo modelo' }));
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Selecciona una marca',
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ Nueva marca' }));
+    let dialog = screen.getByRole('dialog', { name: 'Nueva marca' });
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+    expect(within(dialog).getByRole('alert').textContent).toContain(
+      'obligatorio',
+    );
+    const brandName = within(dialog).getByLabelText('Nombre de la marca');
+    await user.type(brandName, 'Marca A');
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'Ya existe',
+    );
+    expect(api).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'POST', url: '/brands' }),
+    );
+
+    await user.clear(brandName);
+    await user.type(brandName, 'Marca Nueva');
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+    expect(
+      await screen.findByText('Marca “Marca Nueva” creada y seleccionada.'),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Marca')).toHaveProperty('value', 'brand-new');
+    expect(api).toHaveBeenCalledWith({
+      method: 'POST',
+      url: '/brands',
+      data: { name: 'Marca Nueva', active: true },
+    });
+
+    await user.click(screen.getByRole('button', { name: '+ Nuevo modelo' }));
+    dialog = screen.getByRole('dialog', { name: 'Nuevo modelo' });
+    await user.type(
+      within(dialog).getByLabelText('Nombre del modelo'),
+      'Modelo Nuevo',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+    expect(
+      await screen.findByText('Modelo “Modelo Nuevo” creado y seleccionado.'),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Modelo')).toHaveProperty(
+      'value',
+      'model-new',
+    );
+    expect(api).toHaveBeenCalledWith({
+      method: 'POST',
+      url: '/vehicle-models',
+      data: { name: 'Modelo Nuevo', brandId: 'brand-new', active: true },
+    });
+    expect(api).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'POST', url: '/categories' }),
     );
   });
 });
