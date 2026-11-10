@@ -44,7 +44,9 @@ type CatalogCreationState = {
   name: string;
   saving: boolean;
   error: string;
+  brandId?: string;
 };
+const preferredVehicleModelNames = ["Corolla", "RAV4", "Hilux", "Yaris"];
 const autosV3Base = (
   import.meta.env.VITE_API_URL || "http://localhost:3000/api/v2"
 )
@@ -642,6 +644,66 @@ function ResourceForm({
     setError("");
     setCatalogCreation({ kind, name: "", saving: false, error: "" });
   };
+  const addRelationOption = (relation: string, row: Row) =>
+    setAdditionalOptions((currentOptions) => ({
+      ...currentOptions,
+      [relation]: [...(currentOptions[relation] ?? []), row],
+    }));
+  const ensureReferenceModels = async (brandId: string) => {
+    const current = await api<Page | Row[]>({
+      url: "/vehicle-models?page=1&limit=100",
+    });
+    const rows = Array.isArray(current) ? current : current.data;
+    const catalogNames = [
+      ...new Set(
+        rows
+          .map((item) => String(item.name ?? "").trim())
+          .filter((name) => name && !/(prueba|test|mdu)/i.test(name)),
+      ),
+    ];
+    const preferred = preferredVehicleModelNames.filter((name) =>
+      catalogNames.some(
+        (catalogName) =>
+          catalogName.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      ),
+    );
+    const alternatives = catalogNames.filter(
+      (name) =>
+        !preferred.some(
+          (preferredName) =>
+            preferredName.toLocaleLowerCase() === name.toLocaleLowerCase(),
+        ),
+    );
+    const selectedNames = [...preferred, ...alternatives].slice(0, 4);
+    if (selectedNames.length < 4)
+      throw new Error(
+        "El catálogo no contiene cuatro nombres de modelos reales disponibles.",
+      );
+    const associated: Row[] = [];
+    for (const name of selectedNames) {
+      const existing = rows.find(
+        (item) =>
+          String(item.brandId ?? "") === brandId &&
+          String(item.name ?? "")
+            .trim()
+            .toLocaleLowerCase() === name.toLocaleLowerCase(),
+      );
+      if (existing) {
+        associated.push(existing);
+        addRelationOption("vehicle-models", existing);
+        continue;
+      }
+      const created = await api<Row>({
+        method: "POST",
+        url: "/vehicle-models",
+        data: { name, brandId, active: true },
+      });
+      rows.push(created);
+      associated.push(created);
+      addRelationOption("vehicle-models", created);
+    }
+    return associated.map((item) => String(item.name));
+  };
   const createCatalogEntry = async () => {
     if (!catalogCreation) return;
     const name = catalogCreation.name.trim();
@@ -657,6 +719,16 @@ function ResourceForm({
       current ? { ...current, saving: true, error: "" } : current,
     );
     try {
+      if (catalogCreation.kind === "brand" && catalogCreation.brandId) {
+        const assignedNames = await ensureReferenceModels(
+          catalogCreation.brandId,
+        );
+        setCatalogNotice(
+          `Marca “${name}” lista con los modelos ${assignedNames.join(", ")}.`,
+        );
+        setCatalogCreation(null);
+        return;
+      }
       const current = await api<Page | Row[]>({
         url: `/${relation}?page=1&limit=100`,
       });
@@ -693,18 +765,35 @@ function ResourceForm({
         url: `/${relation}`,
         data,
       });
-      setAdditionalOptions((currentOptions) => ({
-        ...currentOptions,
-        [relation]: [...(currentOptions[relation] ?? []), created],
-      }));
-      if (catalogCreation.kind === "brand")
+      addRelationOption(relation, created);
+      if (catalogCreation.kind === "brand") {
         change("brandId", idOf(created), created);
-      else change("modelId", idOf(created), created);
-      setCatalogNotice(
-        catalogCreation.kind === "brand"
-          ? `Marca “${name}” creada y seleccionada.`
-          : `Modelo “${name}” creado y seleccionado.`,
-      );
+        try {
+          const assignedNames = await ensureReferenceModels(idOf(created));
+          setCatalogNotice(
+            `Marca “${name}” creada con los modelos ${assignedNames.join(", ")}.`,
+          );
+        } catch (reason) {
+          setCatalogCreation((currentState) =>
+            currentState
+              ? {
+                  ...currentState,
+                  brandId: idOf(created),
+                  saving: false,
+                  error: `La marca fue creada, pero faltan modelos. ${
+                    reason instanceof Error
+                      ? reason.message
+                      : "Intenta completar los modelos nuevamente."
+                  }`,
+                }
+              : currentState,
+          );
+          return;
+        }
+      } else {
+        change("modelId", idOf(created), created);
+        setCatalogNotice(`Modelo “${name}” creado y seleccionado.`);
+      }
       setCatalogCreation(null);
     } catch (reason) {
       setCatalogCreation((current) =>
@@ -909,6 +998,7 @@ function ResourceForm({
                 )
               }
               disabled={catalogCreation.saving}
+              readOnly={Boolean(catalogCreation.brandId)}
               autoFocus
             />
             {catalogCreation.kind === "model" && (
@@ -935,7 +1025,11 @@ function ResourceForm({
                 disabled={catalogCreation.saving}
                 onClick={() => void createCatalogEntry()}
               >
-                {catalogCreation.saving ? "Guardando…" : "Guardar"}
+                {catalogCreation.saving
+                  ? "Guardando…"
+                  : catalogCreation.brandId
+                    ? "Completar modelos"
+                    : "Guardar"}
               </Button>
             </div>
           </div>

@@ -236,6 +236,30 @@ describe('VehiclesAdmin dependent selectors', () => {
       brands: [{ id: 'brand-a', name: 'Marca A', active: true }],
       'vehicle-models': [
         { id: 'model-a', brandId: 'brand-a', name: 'Modelo A', active: true },
+        {
+          id: 'source-corolla',
+          brandId: 'brand-source',
+          name: 'Corolla',
+          active: true,
+        },
+        {
+          id: 'source-rav4',
+          brandId: 'brand-source',
+          name: 'RAV4',
+          active: true,
+        },
+        {
+          id: 'source-hilux',
+          brandId: 'brand-source',
+          name: 'Hilux',
+          active: true,
+        },
+        {
+          id: 'source-yaris',
+          brandId: 'brand-source',
+          name: 'Yaris',
+          active: true,
+        },
       ],
       categories: [{ id: 'category-a', name: 'SUV' }],
       locations: [{ id: 'location-a', name: 'Quito' }],
@@ -249,7 +273,13 @@ describe('VehiclesAdmin dependent selectors', () => {
         return created as never;
       }
       if (method === 'POST' && url === '/vehicle-models') {
-        const created = { id: 'model-new', ...data };
+        const created = {
+          id:
+            (data as Record<string, unknown>).name === 'Modelo Nuevo'
+              ? 'model-new'
+              : `auto-${String((data as Record<string, unknown>).name).toLowerCase()}`,
+          ...data,
+        };
         pages['vehicle-models'].push(created);
         return created as never;
       }
@@ -294,7 +324,9 @@ describe('VehiclesAdmin dependent selectors', () => {
     await user.type(brandName, 'Marca Nueva');
     await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
     expect(
-      await screen.findByText('Marca “Marca Nueva” creada y seleccionada.'),
+      await screen.findByText(
+        'Marca “Marca Nueva” creada con los modelos Corolla, RAV4, Hilux, Yaris.',
+      ),
     ).toBeTruthy();
     expect(screen.getByLabelText('Marca')).toHaveProperty('value', 'brand-new');
     expect(api).toHaveBeenCalledWith({
@@ -302,6 +334,19 @@ describe('VehiclesAdmin dependent selectors', () => {
       url: '/brands',
       data: { name: 'Marca Nueva', active: true },
     });
+    for (const name of ['Corolla', 'RAV4', 'Hilux', 'Yaris']) {
+      expect(api).toHaveBeenCalledWith({
+        method: 'POST',
+        url: '/vehicle-models',
+        data: { name, brandId: 'brand-new', active: true },
+      });
+      expect(screen.getByRole('option', { name })).toBeTruthy();
+    }
+    expect(
+      pages['vehicle-models']
+        .filter((model) => model.brandId === 'brand-source')
+        .map((model) => model.name),
+    ).toEqual(['Corolla', 'RAV4', 'Hilux', 'Yaris']);
 
     await user.click(screen.getByRole('button', { name: '+ Nuevo modelo' }));
     dialog = screen.getByRole('dialog', { name: 'Nuevo modelo' });
@@ -325,5 +370,102 @@ describe('VehiclesAdmin dependent selectors', () => {
     expect(api).not.toHaveBeenCalledWith(
       expect.objectContaining({ method: 'POST', url: '/categories' }),
     );
+  });
+
+  it('retries only missing automatic models after a partial failure', async () => {
+    const modelNames = ['Corolla', 'RAV4', 'Hilux', 'Yaris'];
+    const pages: Record<string, Array<Record<string, unknown>>> = {
+      brands: [],
+      'vehicle-models': modelNames.map((name) => ({
+        id: `source-${name}`,
+        brandId: 'brand-source',
+        name,
+        active: true,
+      })),
+      categories: [],
+      locations: [],
+      suppliers: [],
+      depots: [],
+    };
+    let failYaris = true;
+    vi.mocked(api).mockImplementation(async ({ method, url, data }) => {
+      if (method === 'POST' && url === '/brands') {
+        const created = { id: 'brand-retry', ...data };
+        pages.brands.push(created);
+        return created as never;
+      }
+      if (method === 'POST' && url === '/vehicle-models') {
+        const name = String((data as Record<string, unknown>).name);
+        if (name === 'Yaris' && failYaris) {
+          failYaris = false;
+          throw new Error('Fallo simulado al crear Yaris');
+        }
+        const created = { id: `retry-${name}`, ...data };
+        pages['vehicle-models'].push(created);
+        return created as never;
+      }
+      const resource = String(url).split('?')[0]?.slice(1) ?? '';
+      if (resource === 'vehicles')
+        return { data: [], total: 0, page: 1, limit: 10 } as never;
+      if (resource in pages)
+        return {
+          data: pages[resource],
+          total: pages[resource].length,
+        } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<AdminApiCollection resource="vehicles" title="Vehículos" />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Nuevo registro' }),
+    );
+    await user.click(screen.getByRole('button', { name: '+ Nueva marca' }));
+    const dialog = screen.getByRole('dialog', { name: 'Nueva marca' });
+    await user.type(
+      within(dialog).getByLabelText('Nombre de la marca'),
+      'Marca Retry',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+
+    expect((await within(dialog).findByRole('alert')).textContent).toContain(
+      'Fallo simulado al crear Yaris',
+    );
+    expect(screen.getByLabelText('Marca')).toHaveProperty(
+      'value',
+      'brand-retry',
+    );
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Completar modelos' }),
+    );
+    expect(
+      await screen.findByText(
+        'Marca “Marca Retry” lista con los modelos Corolla, RAV4, Hilux, Yaris.',
+      ),
+    ).toBeTruthy();
+
+    for (const name of ['Corolla', 'RAV4', 'Hilux']) {
+      expect(
+        vi
+          .mocked(api)
+          .mock.calls.filter(
+            ([request]) =>
+              request.method === 'POST' &&
+              request.url === '/vehicle-models' &&
+            (request.data as Record<string, unknown>).name === name &&
+            (request.data as Record<string, unknown>).brandId === 'brand-retry',
+          ),
+      ).toHaveLength(1);
+    }
+    expect(
+      vi
+        .mocked(api)
+        .mock.calls.filter(
+          ([request]) =>
+            request.method === 'POST' &&
+            request.url === '/vehicle-models' &&
+          (request.data as Record<string, unknown>).name === 'Yaris' &&
+          (request.data as Record<string, unknown>).brandId === 'brand-retry',
+        ),
+    ).toHaveLength(2);
   });
 });
