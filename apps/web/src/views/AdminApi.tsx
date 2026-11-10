@@ -327,11 +327,12 @@ const configurations: Record<string, { columns: string[]; fields: Field[] }> = {
       },
       {
         key: "quantity",
-        label: "Cantidad / Stock",
+        label: "Cantidad de vehículos a registrar",
         type: "number",
         min: 0,
         required: true,
         placeholder: "1",
+        hint: "Cada unidad genera un vehículo independiente con su propia placa",
       },
       {
         key: "description",
@@ -621,6 +622,8 @@ function ResourceForm({
         row?.[field.key] == null
           ? field.key === "active"
             ? "true"
+            : resource === "vehicles" && field.key === "quantity" && !row
+              ? "1"
             : ""
           : String(row[field.key]);
     setValues(next);

@@ -86,6 +86,29 @@ describe('ReservationsAdmin delivery check-in', () => {
 });
 
 describe('VehiclesAdmin dependent selectors', () => {
+  it('keeps the current quantity when editing an existing vehicle', async () => {
+    const vehicle = {
+      id: 'vehicle-existing',
+      licensePlate: 'PBA-145',
+      quantity: 3,
+      active: true,
+    };
+    vi.mocked(api).mockImplementation(async ({ url }) => {
+      const resource = String(url).split('?')[0]?.slice(1) ?? '';
+      if (resource === 'vehicles')
+        return { data: [vehicle], total: 1, page: 1, limit: 10 } as never;
+      return { data: [], total: 0 } as never;
+    });
+    const user = userEvent.setup();
+    render(<AdminApiCollection resource="vehicles" title="Vehículos" />);
+
+    await user.click(await screen.findByRole('button', { name: 'Editar' }));
+
+    expect(
+      screen.getByLabelText('Cantidad de vehículos a registrar'),
+    ).toHaveProperty('value', '3');
+  });
+
   it('filters models and depots, resets stale selections and submits a valid combination', async () => {
     const pages: Record<string, unknown[]> = {
       brands: [
@@ -196,7 +219,14 @@ describe('VehiclesAdmin dependent selectors', () => {
     await user.type(screen.getByLabelText('Maletas'), '2');
     await user.type(screen.getByLabelText('Precio por día'), '50');
     await user.type(screen.getByLabelText('Kilometraje'), '0');
-    await user.type(screen.getByLabelText('Cantidad / Stock'), '1');
+    expect(
+      screen.getByLabelText('Cantidad de vehículos a registrar'),
+    ).toHaveProperty('value', '1');
+    expect(
+      screen.getByText(
+        'Cada unidad genera un vehículo independiente con su propia placa',
+      ),
+    ).toBeTruthy();
     await user.type(screen.getByLabelText('Descripción'), 'Prueba controlada');
     await user.selectOptions(screen.getByLabelText('Estado'), 'AVAILABLE');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
