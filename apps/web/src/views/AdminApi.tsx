@@ -1254,7 +1254,21 @@ export function ReservationsAdmin() {
   async function cancel(row: Row) {
     if (!confirm("¿Cancelar esta reserva?")) return;
     try {
-      await api({ method: "POST", url: `/reservations/${row.id}/cancel` });
+      const result = await api<Row>({
+        method: "POST",
+        url: `${autosV3Base}/autos/orders/${row.id}/cancel`,
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "X-Correlation-Id": crypto.randomUUID(),
+        },
+        data: { reason: "Cancelación solicitada por administración" },
+      });
+      const refund = result.refund as Row | undefined;
+      setMessage(
+        refund?.refund_id
+          ? `Reserva cancelada. Reembolso ${String(refund.refund_id)} procesado por $${Number(refund.amount).toFixed(2)} ${String(refund.currency ?? "USD")}.`
+          : "Reserva cancelada y disponibilidad actualizada.",
+      );
       await load();
     } catch (reason) {
       setMessage(
@@ -1558,9 +1572,10 @@ export function ReservationsAdmin() {
                       >
                         Ver
                       </Button>
-                      {["PENDING", "CONFIRMED"].includes(
-                        String(row.status),
-                      ) && (
+                      {String(row.status) === "CONFIRMED" &&
+                        !row.deliveredAt &&
+                        new Date(String(row.startsAt)).getTime() - Date.now() >=
+                          24 * 60 * 60 * 1000 && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1569,6 +1584,15 @@ export function ReservationsAdmin() {
                           Cancelar
                         </Button>
                       )}
+                      {String(row.status) === "CONFIRMED" &&
+                        !row.deliveredAt &&
+                        new Date(String(row.startsAt)).getTime() - Date.now() <
+                          24 * 60 * 60 * 1000 && (
+                          <span>
+                            Cancelación no disponible (menos de 24h antes del
+                            retiro)
+                          </span>
+                        )}
                       {String(row.status) === "CONFIRMED" &&
                         !row.deliveredAt && (
                           <Button

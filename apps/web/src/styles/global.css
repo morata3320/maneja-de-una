@@ -1900,6 +1900,22 @@ button:disabled {
   font-size: 12px;
   margin-top: 8px;
 }
+.reservation-policy {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  color: var(--color-text-primary);
+}
+.cancellation-modal,
+.cancellation-summary {
+  display: grid;
+  gap: 14px;
+}
+.cancellation-modal p,
+.cancellation-summary p {
+  margin: 0;
+}
 .reservation-bottom {
   border-top: 1px solid var(--color-border);
   margin-top: 18px;

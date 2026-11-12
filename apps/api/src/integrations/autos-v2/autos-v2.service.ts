@@ -593,15 +593,43 @@ VALUES($1,$2,$3,'DEVOLUCION',$4,$5,$6,$7)`,
     });
   }
 
-  async cancel(id: string, actor: Actor, correlationId: string) {
+  async cancel(
+    id: string,
+    actor: Actor,
+    correlationId: string,
+    reason?: string,
+  ) {
     return this.db.transaction(async (m) => {
       const order = await this.lockOrder(m, id, actor);
-      if (order.status === 'CANCELLED') return this.orderView(order);
-      if (order.delivered_at)
-        throw new ConflictException(
-          'No puede cancelarse un alquiler ya entregado.',
-        );
-      const refund = `MOCK-REFUND-${randomUUID().slice(0, 8).toUpperCase()}`;
+      if (order.status === 'CANCELLED')
+        return this.cancellationView(order, String(order.refund_reference));
+      if (
+        order.delivered_at ||
+        order.digital_checkin_at ||
+        order.returned_at ||
+        ['PICKED_UP', 'ENTREGADO', 'CHECKED_IN', 'COMPLETED'].includes(
+          String(order.status),
+        )
+      )
+        throw new ConflictException({
+          type: 'https://booking.epn.edu.ec/errors/cancellation-not-allowed',
+          title: 'Cancelación No Permitida',
+          status: 409,
+          code: 'CANCELLATION_NOT_ALLOWED',
+          detail:
+            'El vehículo ya fue retirado en mostrador o el alquiler ya comenzó; no se puede cancelar.',
+        });
+      const pickup = this.asDate(order.starts_at);
+      if (!pickup || pickup.getTime() - Date.now() < 24 * 60 * 60 * 1000)
+        throw new ConflictException({
+          type: 'https://booking.epn.edu.ec/errors/cancellation-deadline-expired',
+          title: 'Cancelación Fuera de Plazo',
+          status: 409,
+          code: 'CANCELLATION_DEADLINE_EXPIRED',
+          detail:
+            'La cancelación y reembolso solo están permitidos con al menos 24 horas de anticipación a la fecha y hora de recogida.',
+        });
+      const refund = `REF-AUTO-${randomUUID().replaceAll('-', '').slice(0, 6).toUpperCase()}`;
       const [updated] = await m.query<Array<Record<string, unknown>>>(
         "UPDATE orders SET status='CANCELLED',refund_reference=$2,updated_at=now() WHERE id=$1 RETURNING *",
         [order.id, refund],
@@ -620,17 +648,106 @@ VALUES($1,$2,$3,'DEVOLUCION',$4,$5,$6,$7)`,
         'AUTO_ORDER_CANCELLED',
         String(order.id),
         correlationId,
-        { order_id: order.id, refund_reference: refund, simulated: true },
+        {
+          order_id: order.id,
+          refund_reference: refund,
+          refund_amount: Number(order.total_amount),
+          currency: order.currency,
+          percentage: 100,
+          reason: reason ?? null,
+          simulated: true,
+        },
       );
+      const [vehicle] = await m.query<
+        Array<{ operational_status: string; active: boolean }>
+      >(
+        'SELECT operational_status,active FROM vehicles WHERE id=$1 FOR UPDATE',
+        [order.vehicle_id],
+      );
+      const [overlappingOrder] = await m.query<Array<{ id: string }>>(
+        `SELECT id FROM orders WHERE vehicle_id=$1 AND id<>$2
+AND status IN ('PENDING','CONFIRMED') AND starts_at<$4 AND ends_at>$3 LIMIT 1`,
+        [order.vehicle_id, order.id, order.starts_at, order.ends_at],
+      );
+      const [activeCooldown] = await m.query<Array<{ id: string }>>(
+        'SELECT id FROM vehicle_cooldowns WHERE vehicle_id=$1 AND completed_at IS NULL AND ends_at>now() LIMIT 1',
+        [order.vehicle_id],
+      );
+      const operationalStatus = String(
+        vehicle?.operational_status ?? 'NO_DISPONIBLE',
+      );
+      const operationallyBlocked =
+        !vehicle?.active ||
+        !['DISPONIBLE', 'RESERVADO', 'LISTO_PARA_ENTREGAR'].includes(
+          operationalStatus,
+        ) ||
+        Boolean(activeCooldown);
+      const availableUnits =
+        operationallyBlocked || overlappingOrder ? 0 : 1;
+      const newState = activeCooldown
+        ? 'EN_LIMPIEZA'
+        : overlappingOrder
+          ? 'RESERVADO'
+          : operationallyBlocked
+            ? operationalStatus
+            : 'DISPONIBLE';
+      if (
+        newState === 'DISPONIBLE' &&
+        ['RESERVADO', 'LISTO_PARA_ENTREGAR'].includes(
+          String(vehicle?.operational_status),
+        )
+      )
+        await m.query(
+          "UPDATE vehicles SET operational_status='DISPONIBLE',updated_at=now() WHERE id=$1",
+          [order.vehicle_id],
+        );
       await this.stockOutbox.enqueue(
         m,
         String(order.vehicle_id),
         new Date(String(order.starts_at)),
-        1,
+        availableUnits,
         correlationId,
       );
-      return this.orderView(updated);
+      return this.cancellationView(updated, refund, newState, availableUnits);
     });
+  }
+
+  private cancellationView(
+    order: Record<string, unknown>,
+    refundId: string,
+    newState = 'DISPONIBLE',
+    availableUnits = 1,
+  ) {
+    const restored = availableUnits === 1 && newState === 'DISPONIBLE';
+    return {
+      order_id: order.id,
+      pnr: order.locator,
+      status: 'CANCELLED',
+      estado: 'CANCELLED',
+      auto_id: order.vehicle_id,
+      refund: {
+        refund_id: refundId,
+        amount: Number(order.total_amount),
+        currency:
+          typeof order.currency === 'string' ? order.currency : 'USD',
+        percentage: 100,
+        status: 'PROCESSED',
+        message:
+          'Reembolso total de renta procesado sin penalización (Saga Pattern).',
+      },
+      reembolso_id: refundId,
+      monto_reembolsado: Number(order.total_amount),
+      inventory_restoration: {
+        status: restored ? 'RESTORED' : 'PRESERVED',
+        vehicle_id: order.vehicle_id,
+        new_state: newState,
+        message: restored
+          ? 'Vehículo reincorporado a flota disponible para renta.'
+          : 'La disponibilidad permanece protegida por otra reserva o restricción operativa.',
+      },
+      message:
+        'Orden de renta cancelada exitosamente. Vehículo liberado y reembolso procesado.',
+    };
   }
 
   async maintenance(

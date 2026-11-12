@@ -92,8 +92,13 @@ export class AutosV3Service {
     return (await this.autos.orders(actor)).map((order) => this.v3Order(order));
   }
 
-  async cancel(id: string, actor: Actor, correlationId: string) {
-    return this.v3Order(await this.autos.cancel(id, actor, correlationId));
+  async cancel(
+    id: string,
+    actor: Actor,
+    correlationId: string,
+    reason?: string,
+  ) {
+    return this.autos.cancel(id, actor, correlationId, reason);
   }
 
   private v3Order(order: Record<string, unknown>) {

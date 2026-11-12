@@ -137,10 +137,15 @@ export class AutosV3Controller {
   @ApiBearerAuth()
   cancel(
     @Param('orderId') id: string,
-    @Body() _body: CancelOrderV2Dto,
+    @Body() body: CancelOrderV2Dto,
     @Req() req: AutosV2Request & CorrelatedRequest,
   ) {
-    return this.v3.cancel(id, req.actor, String(req.correlationId));
+    return this.v3.cancel(
+      id,
+      req.actor,
+      String(req.correlationId),
+      body.reason ?? body.motivo,
+    );
   }
 
   @Post('reservas/:id/checkin')

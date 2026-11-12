@@ -52,6 +52,8 @@ export interface Reservation {
   status: string;
   paymentStatus?: string;
   paymentReference?: string | null;
+  deliveredAt?: string | null;
+  returnedAt?: string | null;
   createdAt: string;
   vehicle: {
     id: string;
