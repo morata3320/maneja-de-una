@@ -18,11 +18,27 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/ui/Icon";
 import { useExperience } from "../components/LocalExperience";
+
+const ecuadorDate = (instant: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Guayaquil",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+
+export const defaultBookingDates = (now = new Date()) => ({
+  today: ecuadorDate(now),
+  start: ecuadorDate(new Date(now.getTime() + 24 * 60 * 60 * 1000)),
+  end: ecuadorDate(new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000)),
+});
+
 export function VehicleDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [start, setStart] = useState("2026-10-12");
-  const [end, setEnd] = useState("2026-10-15");
+  const [initialDates] = useState(defaultBookingDates);
+  const [start, setStart] = useState(initialDates.start);
+  const [end, setEnd] = useState(initialDates.end);
   const availabilityQuery =
     start && end
       ? `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
@@ -207,6 +223,7 @@ export function VehicleDetail() {
             <Input
               label="Recogida"
               type="date"
+              min={initialDates.today}
               value={start}
               required
               onChange={(e) => setStart(e.target.value)}
