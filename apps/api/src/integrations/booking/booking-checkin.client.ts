@@ -4,6 +4,9 @@ export type BookingCheckinPayload = {
   booking_code: string;
   staff_user: string;
   fecha_checkin: string;
+  licencia_conducir: string;
+  km_salida: number;
+  documento_identidad?: string;
 };
 
 export type BookingCheckinAck = {
@@ -51,6 +54,18 @@ export class BookingCheckinClient {
       version === 'v1'
         ? `autos/orders/${encodedCode}/${action}`
         : `reservas/${encodedCode}/checkin`;
+    const requestBody =
+      version === 'v1'
+        ? action === 'checkin-entrega'
+          ? {
+              licencia_conducir: payload.licencia_conducir,
+              km_salida: payload.km_salida,
+            }
+          : { documento_identidad: payload.documento_identidad }
+        : {
+            staff_user: payload.staff_user,
+            fecha_checkin: payload.fecha_checkin,
+          };
     const response = await fetch(
       new URL(path, `${base.toString().replace(/\/$/, '')}/`),
       {
@@ -62,16 +77,20 @@ export class BookingCheckinClient {
           'X-Correlation-Id': correlationId,
           'Idempotency-Key': `mdu-checkin-${payload.booking_code}`,
         },
-        body: JSON.stringify({
-          staff_user: payload.staff_user,
-          fecha_checkin: payload.fecha_checkin,
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(8000),
       },
     );
     const body = (await response.json().catch(() => null)) as unknown;
-    if (!response.ok)
-      throw new Error(`BOOKING_CHECKIN_HTTP_${response.status}`);
+    if (!response.ok) {
+      const code =
+        body && typeof body === 'object' && 'code' in body
+          ? String((body as Record<string, unknown>).code).slice(0, 80)
+          : null;
+      throw new Error(
+        `BOOKING_CHECKIN_HTTP_${response.status}${code ? `:${code}` : ''}`,
+      );
+    }
     if (!this.isAck(body)) throw new Error('BOOKING_CHECKIN_INVALID_ACK');
     return body;
   }

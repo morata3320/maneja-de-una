@@ -26,6 +26,9 @@ type NotificationRow = {
   attempts: number;
   response_payload: Record<string, unknown> | null;
   acknowledged_at?: Date | string | null;
+  license: string;
+  initial_mileage: number;
+  identification?: string | null;
 };
 
 function mutationRows<T>(result: unknown): T[] {
@@ -83,10 +86,11 @@ export class BookingCheckinService {
          SET status='SENDING',attempts=n.attempts+1,
              external_order_id=o.locator,
              next_attempt_at=now()+interval '60 seconds',updated_at=now()
-         FROM orders o
+         FROM orders o, booking_clients bc
          WHERE n.order_id=$1 AND o.id=n.order_id
+           AND bc.id=n.client_id
            AND (n.status='PENDING' OR (n.status='SENDING' AND n.next_attempt_at<=now()))
-         RETURNING n.*`,
+         RETURNING n.*,o.initial_mileage,bc.license,bc.identification`,
         [orderId],
       );
       const [row] = mutationRows<NotificationRow>(result);
@@ -121,6 +125,9 @@ export class BookingCheckinService {
           booking_code: claimed.external_order_id,
           staff_user: claimed.admin_id,
           fecha_checkin: new Date(claimed.checkin_at).toISOString(),
+          licencia_conducir: claimed.license,
+          km_salida: Number(claimed.initial_mileage),
+          documento_identidad: claimed.identification ?? undefined,
         },
         correlationId,
       );

@@ -5,6 +5,9 @@ const payload = {
   booking_code: 'MDU-ORDER1',
   staff_user: 'operador-mostrador',
   fecha_checkin: '2026-11-04T19:30:00.000Z',
+  licencia_conducir: 'LIC-123456',
+  km_salida: 42000,
+  documento_identidad: '1712345678',
 };
 
 describe('BookingCheckinClient', () => {
@@ -82,6 +85,15 @@ describe('BookingCheckinClient', () => {
         new URL(
           `https://booking-core-api.azurewebsites.net/api/v1/autos/orders/MDU-ORDER1/${action}`,
         ),
+      );
+      expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+        expect.objectContaining({
+          body: JSON.stringify(
+            action === 'checkin-entrega'
+              ? { licencia_conducir: 'LIC-123456', km_salida: 42000 }
+              : { documento_identidad: '1712345678' },
+          ),
+        }),
       );
     },
   );
