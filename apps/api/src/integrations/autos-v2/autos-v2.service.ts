@@ -437,6 +437,8 @@ VALUES($1,'autos-v2:create',$2,$3,201,$4)`,
       throw new ForbiddenException('Se requiere un administrador autorizado.');
     const local = await this.db.transaction(async (m) => {
       const order = await this.lockOrder(m, id, actor);
+      if (order.status !== 'CONFIRMED')
+        throw new ConflictException('Reserva no confirmada.');
       if (!order.digital_checkin_at)
         throw new ConflictException('Transición de entrega no permitida.');
       const adminId = body.tecnico_entrega ?? actor.id;
@@ -461,10 +463,28 @@ VALUES($1,'autos-v2:create',$2,$3,201,$4)`,
           mensaje: 'Vehículo entregado.',
         };
       }
-      const [vehicle] = await m.query<Array<{ mileage: number }>>(
-        'SELECT mileage FROM vehicles WHERE id=$1 FOR UPDATE',
-        [order.vehicle_id],
+      const [vehicle] = await m.query<
+        Array<{
+          mileage: number;
+          operational_status: string;
+          active_delivery: boolean;
+        }>
+      >(
+        `SELECT v.mileage,v.operational_status,
+          EXISTS(SELECT 1 FROM orders active_order
+            WHERE active_order.vehicle_id=v.id AND active_order.id<>$2
+              AND active_order.delivered_at IS NOT NULL
+              AND active_order.returned_at IS NULL) active_delivery
+         FROM vehicles v WHERE v.id=$1 FOR UPDATE`,
+        [order.vehicle_id, order.id],
       );
+      if (
+        vehicle.active_delivery ||
+        vehicle.operational_status === 'ENTREGADO'
+      )
+        throw new ConflictException(
+          'El vehículo ya tiene una entrega activa sin devolución.',
+        );
       if (body.km_salida < vehicle.mileage)
         throw new ConflictException(
           'El kilometraje inicial no puede disminuir.',
@@ -513,6 +533,32 @@ VALUES($1,$2,$3,'ENTREGA',$4,$5) ON CONFLICT(order_id,inspection_type) DO NOTHIN
       correlationId,
     );
     return { ...local, booking_notification: notification };
+  }
+
+  async retryDeliveryNotification(
+    id: string,
+    actor: Actor,
+    correlationId: string,
+  ) {
+    if (!actor.scopes.includes('autos:admin'))
+      throw new ForbiddenException('Se requiere un administrador autorizado.');
+    const order = await this.db.transaction((manager) =>
+      this.lockOrder(manager, id, actor),
+    );
+    if (!order.delivered_at)
+      throw new ConflictException(
+        'La entrega física todavía no ha sido registrada.',
+      );
+    const notification = await this.bookingCheckin.notify(
+      String(order.id),
+      correlationId,
+    );
+    return {
+      order_id: order.id,
+      pnr: order.locator,
+      estado_orden: 'ENTREGADO',
+      booking_notification: notification,
+    };
   }
 
   async returnOrder(

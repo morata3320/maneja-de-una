@@ -144,3 +144,148 @@ describe('AutosV2Service reservation schedule', () => {
     ).rejects.toThrow('No se permiten búsquedas retroactivas.');
   });
 });
+
+describe('AutosV2Service delivery safeguards', () => {
+  const actor = {
+    id: 'admin-1',
+    role: 'ADMIN' as const,
+    scopes: ['autos:admin'],
+  };
+
+  it('bloquea la entrega de una reserva cancelada', async () => {
+    const manager = {
+      query: jest.fn().mockResolvedValueOnce([
+        {
+          id: 'order-1',
+          locator: 'MDU-CANCELLED',
+          status: 'CANCELLED',
+          digital_checkin_at: new Date(),
+        },
+      ]),
+    };
+    const db = {
+      transaction: jest.fn(
+        async (callback: (value: typeof manager) => Promise<unknown>) =>
+          callback(manager),
+      ),
+    } as unknown as DataSource;
+    const bookingCheckin = {
+      notify: jest.fn(),
+      prepare: jest.fn(),
+    } as unknown as BookingCheckinService;
+    const service = new AutosV2Service(
+      db,
+      {} as InventoryStockOutboxService,
+      {} as BookingClientsService,
+      bookingCheckin,
+    );
+
+    await expect(
+      service.delivery(
+        'order-1',
+        { licencia_conducir: 'LIC-1', km_salida: 100 },
+        actor,
+        'corr',
+      ),
+    ).rejects.toThrow('Reserva no confirmada.');
+    expect(bookingCheckin.prepare).not.toHaveBeenCalled();
+    expect(bookingCheckin.notify).not.toHaveBeenCalled();
+  });
+
+  it('bloquea una segunda entrega cuando el vehículo sigue entregado', async () => {
+    const manager = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'order-2',
+            locator: 'MDU-CONFIRMED',
+            status: 'CONFIRMED',
+            vehicle_id: 'vehicle-1',
+            digital_checkin_at: new Date(),
+            delivered_at: null,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            mileage: 100,
+            operational_status: 'ENTREGADO',
+            active_delivery: true,
+          },
+        ]),
+    };
+    const db = {
+      transaction: jest.fn(
+        async (callback: (value: typeof manager) => Promise<unknown>) =>
+          callback(manager),
+      ),
+    } as unknown as DataSource;
+    const bookingCheckin = {
+      notify: jest.fn(),
+      prepare: jest.fn(),
+    } as unknown as BookingCheckinService;
+    const service = new AutosV2Service(
+      db,
+      {} as InventoryStockOutboxService,
+      {} as BookingClientsService,
+      bookingCheckin,
+    );
+
+    await expect(
+      service.delivery(
+        'order-2',
+        { licencia_conducir: 'LIC-1', km_salida: 100 },
+        actor,
+        'corr',
+      ),
+    ).rejects.toThrow('El vehículo ya tiene una entrega activa');
+    expect(bookingCheckin.prepare).not.toHaveBeenCalled();
+  });
+
+  it('reintenta solo la notificación de una entrega ya registrada', async () => {
+    const manager = {
+      query: jest.fn().mockResolvedValueOnce([
+        {
+          id: 'order-3',
+          locator: 'MDU-RETRY',
+          status: 'CONFIRMED',
+          delivered_at: new Date('2026-11-12T15:00:00.000Z'),
+        },
+      ]),
+    };
+    const db = {
+      transaction: jest.fn(
+        async (callback: (value: typeof manager) => Promise<unknown>) =>
+          callback(manager),
+      ),
+    } as unknown as DataSource;
+    const bookingCheckin = {
+      notify: jest.fn().mockResolvedValue({
+        acknowledged: true,
+        status: 'CONFIRMADO_ASISTIDO',
+        attempts: 2,
+      }),
+    } as unknown as BookingCheckinService;
+    const service = new AutosV2Service(
+      db,
+      {} as InventoryStockOutboxService,
+      {} as BookingClientsService,
+      bookingCheckin,
+    );
+
+    await expect(
+      service.retryDeliveryNotification('order-3', actor, 'corr-retry'),
+    ).resolves.toMatchObject({
+      order_id: 'order-3',
+      pnr: 'MDU-RETRY',
+      estado_orden: 'ENTREGADO',
+      booking_notification: { acknowledged: true },
+    });
+    expect(bookingCheckin.notify).toHaveBeenCalledTimes(1);
+    expect(bookingCheckin.notify).toHaveBeenCalledWith(
+      'order-3',
+      'corr-retry',
+    );
+    expect(manager.query).toHaveBeenCalledTimes(1);
+  });
+});

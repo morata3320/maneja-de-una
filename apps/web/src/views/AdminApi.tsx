@@ -1210,6 +1210,9 @@ export function ReservationsAdmin() {
     [selected, setSelected] = useState<Row | null>(null),
     [delivery, setDelivery] = useState<DeliveryFormState | null>(null),
     [returning, setReturning] = useState<ReturnFormState | null>(null),
+    [retryingNotificationId, setRetryingNotificationId] = useState<
+      string | null
+    >(null),
     [message, setMessage] = useState("");
   const url = `/reservations?page=${page}&limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, total = 0, loading, error, load } = useCollection(url),
@@ -1398,6 +1401,39 @@ export function ReservationsAdmin() {
             }
           : value,
       );
+    }
+  }
+  async function retryBookingNotification(row: Row) {
+    const id = String(row.id);
+    if (
+      retryingNotificationId ||
+      !confirm(
+        `¿Reintentar únicamente la notificación a Booking para ${String(row.locator ?? id)}?`,
+      )
+    )
+      return;
+    setMessage("");
+    setRetryingNotificationId(id);
+    try {
+      const result = await api<Row>({
+        method: "POST",
+        url: `${autosV3Base}/autos/orders/${id}/checkin-notification/retry`,
+      });
+      const notification = result.booking_notification as Row | undefined;
+      setMessage(
+        notification?.acknowledged === true
+          ? "Booking Central confirmó la entrega con acknowledged=true."
+          : "Booking no confirmó todavía; la notificación continúa pendiente sin repetir la entrega.",
+      );
+      await load();
+    } catch (reason) {
+      setMessage(
+        reason instanceof Error
+          ? `No se pudo reintentar la notificación: ${reason.message}`
+          : "No se pudo reintentar la notificación a Booking.",
+      );
+    } finally {
+      setRetryingNotificationId(null);
     }
   }
   async function openReturn(row: Row) {
@@ -1607,6 +1643,28 @@ export function ReservationsAdmin() {
                       {Boolean(row.deliveredAt) && (
                         <span>Entrega confirmada</span>
                       )}
+                      {Boolean(row.deliveredAt) &&
+                        row.bookingNotificationStatus === "ACKNOWLEDGED" && (
+                          <span>Booking confirmado</span>
+                        )}
+                      {Boolean(row.deliveredAt) &&
+                        row.bookingNotificationStatus === "PENDING" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            disabled={
+                              retryingNotificationId === String(row.id)
+                            }
+                            onClick={() =>
+                              void retryBookingNotification(row)
+                            }
+                          >
+                            {retryingNotificationId === String(row.id)
+                              ? "Reintentando…"
+                              : "Reintentar notificación a Booking"}
+                          </Button>
+                        )}
                       {Boolean(row.deliveredAt) && !row.returnedAt && (
                         <Button
                           size="sm"

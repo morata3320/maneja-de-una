@@ -6,7 +6,7 @@ import type { BookingClientsService } from './booking-clients.service';
 const notification = {
   order_id: '00000000-0000-4000-8000-000000000001',
   client_id: '00000000-0000-4000-8000-000000000002',
-  external_order_id: '00000000-0000-4000-8000-000000000001',
+  external_order_id: 'MDU-TEST',
   admin_id: 'operador-mostrador',
   checkin_at: '2026-11-04T19:30:00.000Z',
   observations: 'Entrega física confirmada',
@@ -40,7 +40,7 @@ describe('BookingCheckinService', () => {
 
     expect(query.mock.calls[0][0]).toContain('VALUES($1,$2,$6,$3,$4,$5)');
     expect(query.mock.calls[0][1]).toHaveLength(6);
-    expect(query.mock.calls[0][1][5]).toBe(notification.order_id);
+    expect(query.mock.calls[0][1][5]).toBe('MDU-TEST');
   });
 
   it('confirma el Outbox únicamente después del ACK de Booking', async () => {
@@ -72,6 +72,14 @@ describe('BookingCheckinService', () => {
       attempts: 1,
     });
     expect(query.mock.calls[1][0]).toContain("status='ACKNOWLEDGED'");
+    expect(client.notify).toHaveBeenCalledWith(
+      {
+        booking_code: 'MDU-TEST',
+        staff_user: 'operador-mostrador',
+        fecha_checkin: '2026-11-04T19:30:00.000Z',
+      },
+      'corr',
+    );
   });
 
   it('preserva PENDING con backoff cuando Booking falla', async () => {
@@ -102,5 +110,37 @@ describe('BookingCheckinService', () => {
       error: 'BOOKING_CHECKIN_HTTP_503',
     });
     expect(query.mock.calls[1][0]).toContain("status='PENDING'");
+  });
+
+  it('no repite una notificación que ya fue confirmada', async () => {
+    const acknowledged = {
+      ...notification,
+      status: 'ACKNOWLEDGED' as const,
+      attempts: 2,
+    };
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([[], 0])
+      .mockResolvedValueOnce([acknowledged]);
+    const db = {
+      transaction: (callback: (manager: EntityManager) => unknown) =>
+        callback({ query } as unknown as EntityManager),
+      query,
+    } as unknown as DataSource;
+    const client = { notify: jest.fn() } as unknown as BookingCheckinClient;
+    const service = new BookingCheckinService(
+      db,
+      {} as BookingClientsService,
+      client,
+    );
+
+    await expect(service.notify(notification.order_id, 'corr')).resolves.toEqual(
+      {
+        acknowledged: true,
+        status: 'CONFIRMADO_ASISTIDO',
+        attempts: 2,
+      },
+    );
+    expect(client.notify).not.toHaveBeenCalled();
   });
 });

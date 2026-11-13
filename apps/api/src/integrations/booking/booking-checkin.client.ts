@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
 export type BookingCheckinPayload = {
-  external_order_id: string;
-  client_id: string;
-  estado: 'CONFIRMADO_ASISTIDO';
-  admin_id: string;
+  booking_code: string;
+  staff_user: string;
   fecha_checkin: string;
-  observaciones: string;
 };
 
 export type BookingCheckinAck = {
@@ -36,7 +33,7 @@ export class BookingCheckinClient {
     );
     if (base.protocol !== 'https:' || base.username || base.password)
       throw new Error('BOOKING_CHECKIN_BASE_URL_INVALID');
-    const path = `reservas/${encodeURIComponent(payload.external_order_id)}/checkin`;
+    const path = `reservas/${encodeURIComponent(payload.booking_code)}/checkin`;
     const response = await fetch(
       new URL(path, `${base.toString().replace(/\/$/, '')}/`),
       {
@@ -46,9 +43,12 @@ export class BookingCheckinClient {
           Accept: 'application/json',
           'X-API-Key': apiKey,
           'X-Correlation-Id': correlationId,
-          'Idempotency-Key': `mdu-checkin-${payload.external_order_id}`,
+          'Idempotency-Key': `mdu-checkin-${payload.booking_code}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          staff_user: payload.staff_user,
+          fecha_checkin: payload.fecha_checkin,
+        }),
         signal: AbortSignal.timeout(8000),
       },
     );

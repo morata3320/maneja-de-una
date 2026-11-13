@@ -177,6 +177,21 @@ export class AutosV3Controller {
   ) {
     return this.autos.delivery(id, body, req.actor, String(req.correlationId));
   }
+  @Post('orders/:id/checkin-notification/retry')
+  @HttpCode(200)
+  @UseGuards(AutosV2Guard)
+  @AutosV2Scopes('autos:admin')
+  @ApiBearerAuth()
+  retryDeliveryNotification(
+    @Param('id') id: string,
+    @Req() req: AutosV2Request & CorrelatedRequest,
+  ) {
+    return this.autos.retryDeliveryNotification(
+      id,
+      req.actor,
+      String(req.correlationId),
+    );
+  }
   @Post('orders/:id/checkin-devolucion')
   @HttpCode(200)
   @UseGuards(AutosV2Guard)

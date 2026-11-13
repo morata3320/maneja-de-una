@@ -2,12 +2,9 @@ import { BookingCheckinClient } from './booking-checkin.client';
 
 const originalEnv = process.env;
 const payload = {
-  external_order_id: 'order-1',
-  client_id: 'client-1',
-  estado: 'CONFIRMADO_ASISTIDO' as const,
-  admin_id: 'operador-mostrador',
+  booking_code: 'MDU-ORDER1',
+  staff_user: 'operador-mostrador',
   fecha_checkin: '2026-11-04T19:30:00.000Z',
-  observaciones: 'Entrega física confirmada',
 };
 
 describe('BookingCheckinClient', () => {
@@ -43,16 +40,38 @@ describe('BookingCheckinClient', () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(
       new URL(
-        'https://booking-core-api.azurewebsites.net/api/v3/reservas/order-1/checkin',
+        'https://booking-core-api.azurewebsites.net/api/v3/reservas/MDU-ORDER1/checkin',
       ),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
           'X-API-Key': 'booking-checkin-secret',
-          'Idempotency-Key': 'mdu-checkin-order-1',
+          'Idempotency-Key': 'mdu-checkin-MDU-ORDER1',
+        }),
+        body: JSON.stringify({
+          staff_user: 'operador-mostrador',
+          fecha_checkin: '2026-11-04T19:30:00.000Z',
         }),
       }),
     );
+  });
+
+  it.each([404, 500])('reporta el HTTP %s de Booking', async (status) => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('{}', { status }));
+    await expect(
+      new BookingCheckinClient().notify(payload, 'correlation-http'),
+    ).rejects.toThrow(`BOOKING_CHECKIN_HTTP_${status}`);
+  });
+
+  it('propaga un timeout sin inventar un ACK', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(new DOMException('Timeout', 'TimeoutError'));
+    await expect(
+      new BookingCheckinClient().notify(payload, 'correlation-timeout'),
+    ).rejects.toThrow('Timeout');
   });
 
   it('rechaza un HTTP 200 sin ACK contractual', async () => {

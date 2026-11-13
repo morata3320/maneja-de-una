@@ -163,6 +163,13 @@ const reservationView = (row: Row) => {
     bookingClientEmail: scalarText(row.booking_client_email),
     bookingClientIdentification: scalarText(row.booking_client_identification),
     bookingClientLicense: scalarText(row.booking_client_license),
+    bookingNotificationStatus: scalarText(row.booking_notification_status),
+    bookingNotificationAttempts:
+      row.booking_notification_attempts == null
+        ? null
+        : Number(row.booking_notification_attempts),
+    bookingNotificationError: scalarText(row.booking_notification_error),
+    bookingAcknowledgedAt: row.booking_acknowledged_at,
     locator: scalarText(row.locator),
     digitalCheckinAt: row.digital_checkin_at,
     deliveredAt: row.delivered_at,
@@ -964,7 +971,7 @@ export class V2Service {
       WHEN jsonb_typeof(o.route->'pickup')='object'
        AND COALESCE(o.route->'pickup'->>'depotId','') ~ '^[0-9]+$'
       THEN (o.route->'pickup'->>'depotId')::integer ELSE v.depot_id END`;
-    const from = ` FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN booking_clients bc ON bc.id=o.client_id LEFT JOIN vehicles v ON v.id=o.vehicle_id LEFT JOIN brands b ON b.id=v.brand_id LEFT JOIN vehicle_models vm ON vm.id=v.model_id LEFT JOIN payments p ON p.order_id=o.id ${depotJoin} LEFT JOIN locations dl ON dl.id=d.location_id${clause}`;
+    const from = ` FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN booking_clients bc ON bc.id=o.client_id LEFT JOIN booking_checkin_notifications bcn ON bcn.order_id=o.id LEFT JOIN vehicles v ON v.id=o.vehicle_id LEFT JOIN brands b ON b.id=v.brand_id LEFT JOIN vehicle_models vm ON vm.id=v.model_id LEFT JOIN payments p ON p.order_id=o.id ${depotJoin} LEFT JOIN locations dl ON dl.id=d.location_id${clause}`;
     try {
       const [{ count }] = await this.db.query<Array<{ count: string }>>(
         `SELECT count(*) count${from}`,
@@ -973,6 +980,7 @@ export class V2Service {
       const rows = await this.db.query<Row[]>(
         `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
           bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
+          bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,
           u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
           v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
           d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
@@ -998,11 +1006,12 @@ export class V2Service {
     const [r] = await this.db.query<Row[]>(
       `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
         bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
+        bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,
         u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
         v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
         d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
         p.status payment_status,p.payment_reference,p.amount payment_amount,p.card_brand payment_brand,p.card_last4 payment_last4
-       FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN booking_clients bc ON bc.id=o.client_id LEFT JOIN vehicles v ON v.id=o.vehicle_id
+       FROM orders o LEFT JOIN users u ON u.id::text=o.owner_id LEFT JOIN booking_clients bc ON bc.id=o.client_id LEFT JOIN booking_checkin_notifications bcn ON bcn.order_id=o.id LEFT JOIN vehicles v ON v.id=o.vehicle_id
        LEFT JOIN brands b ON b.id=v.brand_id LEFT JOIN vehicle_models vm ON vm.id=v.model_id
        LEFT JOIN payments p ON p.order_id=o.id LEFT JOIN depots d ON d.id=CASE
          WHEN jsonb_typeof(o.route->'pickup')='object' AND COALESCE(o.route->'pickup'->>'depotId','') ~ '^[0-9]+$'

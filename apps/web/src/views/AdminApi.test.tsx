@@ -129,6 +129,59 @@ describe('ReservationsAdmin delivery check-in', () => {
     expect(screen.getByLabelText('Kilometraje de retorno')).toBeTruthy();
     expect(screen.getByLabelText('Nivel de combustible (%)')).toBeTruthy();
   });
+
+  it('reintenta una notificación pendiente sin repetir la entrega', async () => {
+    const delivered = {
+      ...visibleBookingReservation,
+      deliveredAt: '2026-11-06T17:00:00.000Z',
+      bookingNotificationStatus: 'PENDING',
+      bookingNotificationAttempts: 1,
+    };
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.mocked(api).mockImplementation(async ({ method, url }) => {
+      if (String(url).startsWith('/reservations?'))
+        return { data: [delivered], total: 1, page: 1, limit: 10 } as never;
+      if (
+        method === 'POST' &&
+        url ===
+          `https://maneja-de-una-autos-api.azurewebsites.net/api/v3/autos/orders/${delivered.id}/checkin-notification/retry`
+      )
+        return {
+          booking_notification: {
+            acknowledged: true,
+            status: 'CONFIRMADO_ASISTIDO',
+          },
+        } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<ReservationsAdmin />);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Reintentar notificación a Booking',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith({
+        method: 'POST',
+        url: `https://maneja-de-una-autos-api.azurewebsites.net/api/v3/autos/orders/${delivered.id}/checkin-notification/retry`,
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'Booking Central confirmó la entrega con acknowledged=true.',
+      ),
+    ).toBeTruthy();
+    expect(
+      vi.mocked(api).mock.calls.filter(
+        ([request]) =>
+          request.method === 'POST' &&
+          String(request.url).endsWith('/checkin-entrega'),
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 describe('VehiclesAdmin dependent selectors', () => {

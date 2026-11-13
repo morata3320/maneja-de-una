@@ -70,7 +70,7 @@ export class BookingCheckinService {
          order_id,client_id,external_order_id,admin_id,checkin_at,observations
        ) VALUES($1,$2,$6,$3,$4,$5)
        ON CONFLICT(order_id) DO NOTHING`,
-      [order.id, clientId, adminId, checkinAt, observations, String(order.id)],
+      [order.id, clientId, adminId, checkinAt, observations, order.locator],
     );
     return clientId;
   }
@@ -78,12 +78,14 @@ export class BookingCheckinService {
   async notify(orderId: string, correlationId: string) {
     const claim = await this.db.transaction(async (manager) => {
       const result = await manager.query(
-        `UPDATE booking_checkin_notifications
-         SET status='SENDING',attempts=attempts+1,
+        `UPDATE booking_checkin_notifications n
+         SET status='SENDING',attempts=n.attempts+1,
+             external_order_id=o.locator,
              next_attempt_at=now()+interval '60 seconds',updated_at=now()
-         WHERE order_id=$1
-           AND (status='PENDING' OR (status='SENDING' AND next_attempt_at<=now()))
-         RETURNING *`,
+         FROM orders o
+         WHERE n.order_id=$1 AND o.id=n.order_id
+           AND (n.status='PENDING' OR (n.status='SENDING' AND n.next_attempt_at<=now()))
+         RETURNING n.*`,
         [orderId],
       );
       const [row] = mutationRows<NotificationRow>(result);
@@ -114,12 +116,9 @@ export class BookingCheckinService {
     try {
       const ack = await this.client.notify(
         {
-          external_order_id: claimed.external_order_id,
-          client_id: claimed.client_id,
-          estado: 'CONFIRMADO_ASISTIDO',
-          admin_id: claimed.admin_id,
+          booking_code: claimed.external_order_id,
+          staff_user: claimed.admin_id,
           fecha_checkin: new Date(claimed.checkin_at).toISOString(),
-          observaciones: claimed.observations,
         },
         correlationId,
       );
