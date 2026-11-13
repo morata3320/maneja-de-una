@@ -9,7 +9,12 @@ export type BookingCheckinPayload = {
 export type BookingCheckinAck = {
   acknowledged: true;
   status: 'CONFIRMADO_ASISTIDO';
+  voucher?: Record<string, unknown>;
+  [key: string]: unknown;
 };
+
+type BookingCheckinEndpointVersion = 'v1' | 'v3';
+type BookingCheckinV1Action = 'checkin' | 'checkin-entrega';
 
 @Injectable()
 export class BookingCheckinClient {
@@ -27,13 +32,25 @@ export class BookingCheckinClient {
     if (!this.isEnabled()) throw new Error('BOOKING_CHECKIN_DISABLED');
     const apiKey = process.env.BOOKING_CHECKIN_API_KEY;
     if (!apiKey) throw new Error('BOOKING_CHECKIN_API_KEY_REQUIRED');
+    const version = (process.env.BOOKING_CHECKIN_ENDPOINT_VERSION ??
+      'v3') as BookingCheckinEndpointVersion;
+    if (!['v1', 'v3'].includes(version))
+      throw new Error('BOOKING_CHECKIN_ENDPOINT_VERSION_INVALID');
     const base = new URL(
       process.env.BOOKING_CHECKIN_BASE_URL ??
-        'https://booking-core-api.azurewebsites.net/api/v3',
+        `https://booking-core-api.azurewebsites.net/api/${version}`,
     );
     if (base.protocol !== 'https:' || base.username || base.password)
       throw new Error('BOOKING_CHECKIN_BASE_URL_INVALID');
-    const path = `reservas/${encodeURIComponent(payload.booking_code)}/checkin`;
+    const action = (process.env.BOOKING_CHECKIN_V1_ACTION ??
+      'checkin-entrega') as BookingCheckinV1Action;
+    if (!['checkin', 'checkin-entrega'].includes(action))
+      throw new Error('BOOKING_CHECKIN_V1_ACTION_INVALID');
+    const encodedCode = encodeURIComponent(payload.booking_code);
+    const path =
+      version === 'v1'
+        ? `autos/orders/${encodedCode}/${action}`
+        : `reservas/${encodedCode}/checkin`;
     const response = await fetch(
       new URL(path, `${base.toString().replace(/\/$/, '')}/`),
       {

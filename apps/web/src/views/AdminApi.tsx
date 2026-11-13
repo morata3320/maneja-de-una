@@ -625,7 +625,7 @@ function ResourceForm({
             ? "true"
             : resource === "vehicles" && field.key === "quantity" && !row
               ? "1"
-            : ""
+              : ""
           : String(row[field.key]);
     setValues(next);
   }, [config.fields, row]);
@@ -1254,6 +1254,21 @@ export function ReservationsAdmin() {
       return `$${Number(value).toFixed(2)}`;
     return display(value);
   };
+  const voucherLabel = (row: Row) => {
+    const voucher = row.bookingVoucher;
+    if (!voucher || typeof voucher !== "object" || Array.isArray(voucher))
+      return null;
+    const value = voucher as Row;
+    const identifier =
+      value.id ?? value.voucher_id ?? value.code ?? value.reference;
+    const verification = value.verified ?? value.verificado ?? value.status;
+    return (
+      [identifier, verification]
+        .filter((part) => part !== undefined && part !== null && part !== "")
+        .map(String)
+        .join(" · ") || "Voucher recibido"
+    );
+  };
   async function cancel(row: Row) {
     if (!confirm("¿Cancelar esta reserva?")) return;
     try {
@@ -1612,14 +1627,14 @@ export function ReservationsAdmin() {
                         !row.deliveredAt &&
                         new Date(String(row.startsAt)).getTime() - Date.now() >=
                           24 * 60 * 60 * 1000 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void cancel(row)}
-                        >
-                          Cancelar
-                        </Button>
-                      )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void cancel(row)}
+                          >
+                            Cancelar
+                          </Button>
+                        )}
                       {String(row.status) === "CONFIRMED" &&
                         !row.deliveredAt &&
                         new Date(String(row.startsAt)).getTime() - Date.now() <
@@ -1647,18 +1662,17 @@ export function ReservationsAdmin() {
                         row.bookingNotificationStatus === "ACKNOWLEDGED" && (
                           <span>Booking confirmado</span>
                         )}
+                      {voucherLabel(row) && (
+                        <span>Voucher: {voucherLabel(row)}</span>
+                      )}
                       {Boolean(row.deliveredAt) &&
                         row.bookingNotificationStatus === "PENDING" && (
                           <Button
                             size="sm"
                             variant="ghost"
                             type="button"
-                            disabled={
-                              retryingNotificationId === String(row.id)
-                            }
-                            onClick={() =>
-                              void retryBookingNotification(row)
-                            }
+                            disabled={retryingNotificationId === String(row.id)}
+                            onClick={() => void retryBookingNotification(row)}
                           >
                             {retryingNotificationId === String(row.id)
                               ? "Reintentando…"
@@ -1722,6 +1736,17 @@ export function ReservationsAdmin() {
               {reservationValue(selected, key)}
             </p>
           ))}
+        {selected && Boolean(selected.bookingNotificationStatus) && (
+          <p>
+            <strong>Sincronización Booking:</strong>{" "}
+            {String(selected.bookingNotificationStatus)}
+          </p>
+        )}
+        {selected && voucherLabel(selected) && (
+          <p>
+            <strong>Voucher verificado:</strong> {voucherLabel(selected)}
+          </p>
+        )}
       </Modal>
       <Modal
         open={!!delivery}

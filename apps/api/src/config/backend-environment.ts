@@ -84,9 +84,17 @@ export function validateBackendEnvironment(env: NodeJS.ProcessEnv): void {
     }
   }
   if (env.BOOKING_CHECKIN_ENABLED === 'true') {
+    const version = env.BOOKING_CHECKIN_ENDPOINT_VERSION ?? 'v3';
+    if (!['v1', 'v3'].includes(version))
+      throw new Error('BOOKING_CHECKIN_ENDPOINT_VERSION debe ser v1 o v3.');
+    const action = env.BOOKING_CHECKIN_V1_ACTION ?? 'checkin-entrega';
+    if (!['checkin', 'checkin-entrega'].includes(action))
+      throw new Error(
+        'BOOKING_CHECKIN_V1_ACTION debe ser checkin o checkin-entrega.',
+      );
     const url = new URL(
       env.BOOKING_CHECKIN_BASE_URL ??
-        'https://booking-core-api.azurewebsites.net/api/v3',
+        `https://booking-core-api.azurewebsites.net/api/${version}`,
     );
     if (url.protocol !== 'https:' || url.username || url.password)
       throw new Error(

@@ -25,6 +25,7 @@ type NotificationRow = {
   status: 'PENDING' | 'SENDING' | 'ACKNOWLEDGED';
   attempts: number;
   response_payload: Record<string, unknown> | null;
+  acknowledged_at?: Date | string | null;
 };
 
 function mutationRows<T>(result: unknown): T[] {
@@ -102,6 +103,7 @@ export class BookingCheckinService {
 
     if (claimed.status === 'ACKNOWLEDGED')
       return {
+        ...claimed.response_payload,
         acknowledged: true,
         status: 'CONFIRMADO_ASISTIDO' as const,
         attempts: claimed.attempts,

@@ -82,6 +82,39 @@ describe('BookingCheckinService', () => {
     );
   });
 
+  it('conserva el voucher real dentro de response_payload', async () => {
+    const ack = {
+      acknowledged: true as const,
+      status: 'CONFIRMADO_ASISTIDO' as const,
+      voucher: { id: 'VCH-BOOKING-1', verified: true },
+    };
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([[notification], 1])
+      .mockResolvedValueOnce([]);
+    const db = {
+      transaction: (callback: (manager: EntityManager) => unknown) =>
+        callback({ query } as unknown as EntityManager),
+      query,
+    } as unknown as DataSource;
+    const client = {
+      notify: jest.fn().mockResolvedValue(ack),
+    } as unknown as BookingCheckinClient;
+    const service = new BookingCheckinService(
+      db,
+      {} as BookingClientsService,
+      client,
+    );
+
+    await expect(
+      service.notify(notification.order_id, 'corr'),
+    ).resolves.toEqual({
+      ...ack,
+      attempts: 1,
+    });
+    expect(query.mock.calls[1]?.[1]).toEqual([notification.order_id, ack]);
+  });
+
   it('preserva PENDING con backoff cuando Booking falla', async () => {
     const query = jest
       .fn()
@@ -134,13 +167,13 @@ describe('BookingCheckinService', () => {
       client,
     );
 
-    await expect(service.notify(notification.order_id, 'corr')).resolves.toEqual(
-      {
-        acknowledged: true,
-        status: 'CONFIRMADO_ASISTIDO',
-        attempts: 2,
-      },
-    );
+    await expect(
+      service.notify(notification.order_id, 'corr'),
+    ).resolves.toEqual({
+      acknowledged: true,
+      status: 'CONFIRMADO_ASISTIDO',
+      attempts: 2,
+    });
     expect(client.notify).not.toHaveBeenCalled();
   });
 });

@@ -77,6 +77,10 @@ const stockView = (row: Row) => ({
 const userView = (u: Row) => expose(u);
 const scalarText = (value: unknown): string | null =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : null;
+const objectValue = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 const reservationView = (row: Row) => {
   const route =
     row.route && typeof row.route === 'object'
@@ -133,6 +137,8 @@ const reservationView = (row: Row) => {
           brand: scalarText(row.payment_brand),
           last4: scalarText(row.payment_last4),
         };
+  const bookingResponse = objectValue(row.booking_notification_response);
+  const bookingVoucher = objectValue(bookingResponse?.voucher);
   return {
     id: scalarText(row.id) ?? '',
     status: scalarText(row.status) ?? '',
@@ -170,14 +176,15 @@ const reservationView = (row: Row) => {
         : Number(row.booking_notification_attempts),
     bookingNotificationError: scalarText(row.booking_notification_error),
     bookingAcknowledgedAt: row.booking_acknowledged_at,
+    bookingNotificationResponse: bookingResponse,
+    bookingVoucher,
     locator: scalarText(row.locator),
     digitalCheckinAt: row.digital_checkin_at,
     deliveredAt: row.delivered_at,
     returnedAt: row.returned_at,
     initialMileage:
       row.initial_mileage == null ? null : Number(row.initial_mileage),
-    finalMileage:
-      row.final_mileage == null ? null : Number(row.final_mileage),
+    finalMileage: row.final_mileage == null ? null : Number(row.final_mileage),
     vehicleMileage:
       row.vehicle_mileage == null ? null : Number(row.vehicle_mileage),
     pickupDepot,
@@ -486,7 +493,9 @@ export class V2Service {
     );
     if (!user) throw new NotFoundException('Usuario no encontrado');
     if (user.role === 'ADMIN')
-      throw new ForbiddenException('No se puede eliminar una cuenta administradora.');
+      throw new ForbiddenException(
+        'No se puede eliminar una cuenta administradora.',
+      );
     try {
       const rows = await this.db.query<Row[]>(
         'DELETE FROM users WHERE id::text=$1 RETURNING id',
@@ -821,7 +830,9 @@ export class V2Service {
           'Marca, modelo, categoría, proveedor o agencia incompatibles.',
         );
       if (databaseError.code?.startsWith('23'))
-        throw new ConflictException('Los datos incumplen una regla de integridad.');
+        throw new ConflictException(
+          'Los datos incumplen una regla de integridad.',
+        );
       throw e;
     }
   }
@@ -980,7 +991,7 @@ export class V2Service {
       const rows = await this.db.query<Row[]>(
         `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
           bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
-          bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,
+          bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,bcn.response_payload booking_notification_response,
           u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
           v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
           d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,
@@ -1006,7 +1017,7 @@ export class V2Service {
     const [r] = await this.db.query<Row[]>(
       `SELECT o.id,o.locator,o.status,o.starts_at,o.ends_at,o.total_amount,o.currency,o.created_at,o.updated_at,o.vehicle_id,o.owner_id,o.route,o.digital_checkin_at,o.delivered_at,o.returned_at,o.initial_mileage,o.final_mileage,
         bc.id booking_client_id,bc.name booking_client_name,bc.email booking_client_email,bc.identification booking_client_identification,bc.license booking_client_license,
-        bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,
+        bcn.status booking_notification_status,bcn.attempts booking_notification_attempts,bcn.last_error booking_notification_error,bcn.acknowledged_at booking_acknowledged_at,bcn.response_payload booking_notification_response,
         u.id customer_id,u.first_name customer_first_name,u.last_name customer_last_name,u.email customer_email,
         v.id related_vehicle_id,v.mileage vehicle_mileage,b.name vehicle_brand,vm.name vehicle_model,
         d.id depot_id,d.name depot_name,d.location_id depot_location_id,dl.name depot_location_name,

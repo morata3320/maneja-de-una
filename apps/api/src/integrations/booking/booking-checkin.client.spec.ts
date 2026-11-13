@@ -56,6 +56,36 @@ describe('BookingCheckinClient', () => {
     );
   });
 
+  it.each(['checkin', 'checkin-entrega'] as const)(
+    'soporta el endpoint V1 %s sin enviar a V3 en paralelo',
+    async (action) => {
+      process.env.BOOKING_CHECKIN_ENDPOINT_VERSION = 'v1';
+      process.env.BOOKING_CHECKIN_V1_ACTION = action;
+      delete process.env.BOOKING_CHECKIN_BASE_URL;
+      const response = {
+        acknowledged: true,
+        status: 'CONFIRMADO_ASISTIDO',
+        voucher: { id: 'VCH-1', verified: true },
+      };
+      const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      await expect(
+        new BookingCheckinClient().notify(payload, 'correlation-v1'),
+      ).resolves.toEqual(response);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toEqual(
+        new URL(
+          `https://booking-core-api.azurewebsites.net/api/v1/autos/orders/MDU-ORDER1/${action}`,
+        ),
+      );
+    },
+  );
+
   it.each([404, 500])('reporta el HTTP %s de Booking', async (status) => {
     jest
       .spyOn(global, 'fetch')

@@ -137,7 +137,10 @@ describe('ReservationsAdmin delivery check-in', () => {
       bookingNotificationStatus: 'PENDING',
       bookingNotificationAttempts: 1,
     };
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
     vi.mocked(api).mockImplementation(async ({ method, url }) => {
       if (String(url).startsWith('/reservations?'))
         return { data: [delivered], total: 1, page: 1, limit: 10 } as never;
@@ -175,12 +178,36 @@ describe('ReservationsAdmin delivery check-in', () => {
       ),
     ).toBeTruthy();
     expect(
-      vi.mocked(api).mock.calls.filter(
-        ([request]) =>
-          request.method === 'POST' &&
-          String(request.url).endsWith('/checkin-entrega'),
-      ),
+      vi
+        .mocked(api)
+        .mock.calls.filter(
+          ([request]) =>
+            request.method === 'POST' &&
+            String(request.url).endsWith('/checkin-entrega'),
+        ),
     ).toHaveLength(0);
+  });
+
+  it('muestra el voucher real persistido en el detalle administrativo', async () => {
+    const delivered = {
+      ...visibleBookingReservation,
+      deliveredAt: '2026-11-06T17:00:00.000Z',
+      bookingNotificationStatus: 'ACKNOWLEDGED',
+      bookingVoucher: { id: 'VCH-BOOKING-1', verified: true },
+    };
+    vi.mocked(api).mockImplementation(async ({ url }) => {
+      if (String(url).startsWith('/reservations?'))
+        return { data: [delivered], total: 1, page: 1, limit: 10 } as never;
+      throw new Error(`Solicitud inesperada: ${String(url)}`);
+    });
+    const user = userEvent.setup();
+    render(<ReservationsAdmin />);
+
+    expect(
+      await screen.findByText('Voucher: VCH-BOOKING-1 · true'),
+    ).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Ver' }));
+    expect(screen.getByText('VCH-BOOKING-1 · true')).toBeTruthy();
   });
 });
 
@@ -623,8 +650,9 @@ describe('VehiclesAdmin dependent selectors', () => {
             ([request]) =>
               request.method === 'POST' &&
               request.url === '/vehicle-models' &&
-            (request.data as Record<string, unknown>).name === name &&
-            (request.data as Record<string, unknown>).brandId === 'brand-retry',
+              (request.data as Record<string, unknown>).name === name &&
+              (request.data as Record<string, unknown>).brandId ===
+                'brand-retry',
           ),
       ).toHaveLength(1);
     }
@@ -635,8 +663,8 @@ describe('VehiclesAdmin dependent selectors', () => {
           ([request]) =>
             request.method === 'POST' &&
             request.url === '/vehicle-models' &&
-          (request.data as Record<string, unknown>).name === 'Yaris' &&
-          (request.data as Record<string, unknown>).brandId === 'brand-retry',
+            (request.data as Record<string, unknown>).name === 'Yaris' &&
+            (request.data as Record<string, unknown>).brandId === 'brand-retry',
         ),
     ).toHaveLength(2);
   });
