@@ -76,8 +76,12 @@ export class CatalogService {
  WHERE v.active AND b.active AND vm.active AND c.active AND v.status IN ('AVAILABLE','RESERVED')
  AND v.depot_id=ANY($1::int[]) AND v.supplier_id=ANY($2::int[])
  AND ($5::text[] IS NULL OR c.name=ANY($5)) AND ($6::text[] IS NULL OR v.transmission=ANY($6))
- AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.status IN ('CONFIRMED','PENDING') AND o.starts_at<$4 AND o.ends_at>$3)
+ AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.starts_at<$4 AND (
+   (o.status='PENDING' AND o.ends_at>$3)
+   OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$3))
+ ))
  AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=v.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$4 AND h.ends_at>$3)
+ AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=v.id AND vc.completed_at IS NULL AND vc.starts_at<$4 AND vc.ends_at>$3)
  ORDER BY v.id`,
       [
         pickup.map((d) => d.id),

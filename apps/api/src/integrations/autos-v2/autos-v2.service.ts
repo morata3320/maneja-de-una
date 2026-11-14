@@ -929,7 +929,12 @@ WHERE v.active AND ($1::text IS NULL OR v.id::text=$1)
  AND ($4::text IS NULL OR lower(l.city)=lower($4) OR lower(l.name)=lower($4))
  AND v.operational_status NOT IN ('ENTREGADO','EN_MANTENIMIENTO')
  AND ($5::timestamptz IS NOT NULL OR v.operational_status<>'EN_LIMPIEZA')
- AND ($5::timestamptz IS NULL OR NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$6 AND o.ends_at>$5))
+ AND ($5::timestamptz IS NULL OR NOT EXISTS(
+   SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.starts_at<$6 AND (
+     (o.status='PENDING' AND o.ends_at>$5)
+     OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$5))
+   )
+ ))
  AND ($5::timestamptz IS NULL OR NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=v.id AND vc.starts_at<$6 AND vc.ends_at>$5))
 ORDER BY v.price_per_day,v.id LIMIT $7`,
       [
@@ -1067,7 +1072,10 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
         `VEHICLE_IN_CLEANING_COOLDOWN hasta ${cooldown.ends_at.toISOString()}.`,
       );
     const [conflict] = await m.query<Array<{ id: string }>>(
-      "SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2 LIMIT 1",
+      `SELECT id FROM orders WHERE vehicle_id=$1 AND starts_at<$3 AND (
+         (status='PENDING' AND ends_at>$2)
+         OR (status='CONFIRMED' AND (returned_at IS NULL OR GREATEST(ends_at,returned_at)>$2))
+       ) LIMIT 1`,
       [vehicle.id, start, end],
     );
     if (conflict)

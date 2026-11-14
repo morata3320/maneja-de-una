@@ -69,12 +69,61 @@ describe('AutosV2Service reservation schedule', () => {
     });
 
     const sql = String(query.mock.calls[0]?.[0]);
-    expect(sql).toContain("o.status IN ('PENDING','CONFIRMED')");
-    expect(sql).toContain('o.starts_at<$6 AND o.ends_at>$5');
+    expect(sql).toContain("o.status='PENDING' AND o.ends_at>$5");
+    expect(sql).toContain("o.status='CONFIRMED'");
+    expect(sql).toContain('o.returned_at IS NULL');
+    expect(sql).toContain('GREATEST(o.ends_at,o.returned_at)>$5');
+    expect(sql).toContain('o.starts_at<$6');
     expect(sql).toContain('vc.starts_at<$6 AND vc.ends_at>$5');
     expect(sql).toContain(
       "$5::timestamptz IS NOT NULL OR v.operational_status<>'EN_LIMPIEZA'",
     );
+  });
+
+  it('keeps confirmed units blocked after the planned end until physical return', async () => {
+    const manager = {
+      query: jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    };
+    const db = {} as DataSource;
+    const service = new AutosV2Service(
+      db,
+      {} as InventoryStockOutboxService,
+      {} as BookingClientsService,
+      {} as BookingCheckinService,
+    );
+    const ensureAvailable = (
+      service as unknown as {
+        ensureAvailable: (
+          m: typeof manager,
+          vehicle: {
+            id: string;
+            operational_status: string;
+          },
+          start: Date,
+          end: Date,
+        ) => Promise<void>;
+      }
+    ).ensureAvailable.bind(service);
+    const start = new Date('2026-11-28T15:00:00.000Z');
+    const end = new Date('2026-11-29T15:00:00.000Z');
+
+    await ensureAvailable(
+      manager,
+      { id: 'vehicle-1', operational_status: 'DISPONIBLE' },
+      start,
+      end,
+    );
+
+    const orderSql = String(manager.query.mock.calls[1]?.[0]);
+    expect(orderSql).toContain("status='PENDING' AND ends_at>$2");
+    expect(orderSql).toContain("status='CONFIRMED'");
+    expect(orderSql).toContain('returned_at IS NULL');
+    expect(orderSql).toContain('GREATEST(ends_at,returned_at)>$2');
+    expect(manager.query.mock.calls[1]?.[1]).toEqual([
+      'vehicle-1',
+      start,
+      end,
+    ]);
   });
 
   it('reports RESERVADO only while a blocking reservation is currently active', async () => {

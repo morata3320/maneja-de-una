@@ -562,9 +562,15 @@ export class V2Service {
           : 'v.created_at DESC';
     const availableStock = period
       ? `sv.status IN ('AVAILABLE','RESERVED')
-         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$2 AND o.ends_at>$1)
-         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$2 AND h.ends_at>$1)`
-      : "sv.status='AVAILABLE'";
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.starts_at<$2 AND (
+           (o.status='PENDING' AND o.ends_at>$1)
+           OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$1))
+         ))
+         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$2 AND h.ends_at>$1)
+         AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.starts_at<$2 AND vc.ends_at>$1)`
+      : `sv.status='AVAILABLE'
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status='CONFIRMED' AND o.delivered_at IS NOT NULL AND o.returned_at IS NULL)
+         AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.ends_at>now())`;
     const stockColumns = `,
       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
       (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active AND ${availableStock}) stock_available`;
@@ -593,9 +599,15 @@ export class V2Service {
     if (period) values.push(period.start, period.end);
     const availableStock = period
       ? `sv.status IN ('AVAILABLE','RESERVED')
-         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status IN ('PENDING','CONFIRMED') AND o.starts_at<$3 AND o.ends_at>$2)
-         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$3 AND h.ends_at>$2)`
-      : "sv.status='AVAILABLE'";
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.starts_at<$3 AND (
+           (o.status='PENDING' AND o.ends_at>$2)
+           OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$2))
+         ))
+         AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$3 AND h.ends_at>$2)
+         AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.starts_at<$3 AND vc.ends_at>$2)`
+      : `sv.status='AVAILABLE'
+         AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.status='CONFIRMED' AND o.delivered_at IS NOT NULL AND o.returned_at IS NULL)
+         AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.ends_at>now())`;
     const [row] = await this.db.query<Row[]>(
       `SELECT v.*,b.name brand,vm.name model,c.name category,l.name location,s.name supplier,
        (SELECT count(*)::int FROM vehicles sv WHERE sv.model_id=v.model_id AND sv.active) stock_total,
@@ -913,8 +925,12 @@ export class V2Service {
           'El lugar de recogida no está disponible para este vehículo',
         );
       const overlap = await m.query<Row[]>(
-        `SELECT id FROM orders WHERE vehicle_id=$1 AND status IN ('PENDING','CONFIRMED') AND starts_at<$3 AND ends_at>$2
-         UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
+        `SELECT id FROM orders WHERE vehicle_id=$1 AND starts_at<$3 AND (
+           (status='PENDING' AND ends_at>$2)
+           OR (status='CONFIRMED' AND (returned_at IS NULL OR GREATEST(ends_at,returned_at)>$2))
+         )
+         UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2
+         UNION ALL SELECT id FROM vehicle_cooldowns WHERE vehicle_id=$1 AND completed_at IS NULL AND starts_at<$3 AND ends_at>$2 LIMIT 1`,
         [body.vehicleId, start, end],
       );
       if (overlap.length)
