@@ -100,7 +100,10 @@ export class OrdersService {
     const conflicts = await m.query<Array<{ id: string }>>(
       `SELECT id FROM orders WHERE vehicle_id=$1 AND starts_at<$3 AND ($5::uuid IS NULL OR id<>$5) AND (
          (status='PENDING' AND ends_at>$2)
-         OR (status='CONFIRMED' AND (returned_at IS NULL OR GREATEST(ends_at,returned_at)>$2))
+         OR (status='CONFIRMED' AND (
+           GREATEST(ends_at,COALESCE(returned_at,ends_at))>$2
+           OR (delivered_at IS NOT NULL AND returned_at IS NULL)
+         ))
        )
  UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2 AND ($4::uuid IS NULL OR id<>$4)
  UNION ALL SELECT id FROM vehicle_cooldowns WHERE vehicle_id=$1 AND completed_at IS NULL AND starts_at<$3 AND ends_at>$2`,

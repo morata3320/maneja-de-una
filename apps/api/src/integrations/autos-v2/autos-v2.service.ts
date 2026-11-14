@@ -932,7 +932,10 @@ WHERE v.active AND ($1::text IS NULL OR v.id::text=$1)
  AND ($5::timestamptz IS NULL OR NOT EXISTS(
    SELECT 1 FROM orders o WHERE o.vehicle_id=v.id AND o.starts_at<$6 AND (
      (o.status='PENDING' AND o.ends_at>$5)
-     OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$5))
+     OR (o.status='CONFIRMED' AND (
+       GREATEST(o.ends_at,COALESCE(o.returned_at,o.ends_at))>$5
+       OR (o.delivered_at IS NOT NULL AND o.returned_at IS NULL)
+     ))
    )
  ))
  AND ($5::timestamptz IS NULL OR NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=v.id AND vc.starts_at<$6 AND vc.ends_at>$5))
@@ -1074,7 +1077,10 @@ ORDER BY v.price_per_day,v.id LIMIT $7`,
     const [conflict] = await m.query<Array<{ id: string }>>(
       `SELECT id FROM orders WHERE vehicle_id=$1 AND starts_at<$3 AND (
          (status='PENDING' AND ends_at>$2)
-         OR (status='CONFIRMED' AND (returned_at IS NULL OR GREATEST(ends_at,returned_at)>$2))
+         OR (status='CONFIRMED' AND (
+           GREATEST(ends_at,COALESCE(returned_at,ends_at))>$2
+           OR (delivered_at IS NOT NULL AND returned_at IS NULL)
+         ))
        ) LIMIT 1`,
       [vehicle.id, start, end],
     );

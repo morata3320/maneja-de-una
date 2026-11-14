@@ -564,7 +564,10 @@ export class V2Service {
       ? `sv.status IN ('AVAILABLE','RESERVED')
          AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.starts_at<$2 AND (
            (o.status='PENDING' AND o.ends_at>$1)
-           OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$1))
+           OR (o.status='CONFIRMED' AND (
+             GREATEST(o.ends_at,COALESCE(o.returned_at,o.ends_at))>$1
+             OR (o.delivered_at IS NOT NULL AND o.returned_at IS NULL)
+           ))
          ))
          AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$2 AND h.ends_at>$1)
          AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.starts_at<$2 AND vc.ends_at>$1)`
@@ -601,7 +604,10 @@ export class V2Service {
       ? `sv.status IN ('AVAILABLE','RESERVED')
          AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.vehicle_id=sv.id AND o.starts_at<$3 AND (
            (o.status='PENDING' AND o.ends_at>$2)
-           OR (o.status='CONFIRMED' AND (o.returned_at IS NULL OR GREATEST(o.ends_at,o.returned_at)>$2))
+           OR (o.status='CONFIRMED' AND (
+             GREATEST(o.ends_at,COALESCE(o.returned_at,o.ends_at))>$2
+             OR (o.delivered_at IS NOT NULL AND o.returned_at IS NULL)
+           ))
          ))
          AND NOT EXISTS(SELECT 1 FROM holds h WHERE h.vehicle_id=sv.id AND NOT h.consumed AND h.expires_at>now() AND h.starts_at<$3 AND h.ends_at>$2)
          AND NOT EXISTS(SELECT 1 FROM vehicle_cooldowns vc WHERE vc.vehicle_id=sv.id AND vc.completed_at IS NULL AND vc.starts_at<$3 AND vc.ends_at>$2)`
@@ -927,7 +933,10 @@ export class V2Service {
       const overlap = await m.query<Row[]>(
         `SELECT id FROM orders WHERE vehicle_id=$1 AND starts_at<$3 AND (
            (status='PENDING' AND ends_at>$2)
-           OR (status='CONFIRMED' AND (returned_at IS NULL OR GREATEST(ends_at,returned_at)>$2))
+           OR (status='CONFIRMED' AND (
+             GREATEST(ends_at,COALESCE(returned_at,ends_at))>$2
+             OR (delivered_at IS NOT NULL AND returned_at IS NULL)
+           ))
          )
          UNION ALL SELECT id FROM holds WHERE vehicle_id=$1 AND NOT consumed AND expires_at>now() AND starts_at<$3 AND ends_at>$2
          UNION ALL SELECT id FROM vehicle_cooldowns WHERE vehicle_id=$1 AND completed_at IS NULL AND starts_at<$3 AND ends_at>$2 LIMIT 1`,

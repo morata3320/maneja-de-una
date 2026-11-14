@@ -71,8 +71,11 @@ describe('AutosV2Service reservation schedule', () => {
     const sql = String(query.mock.calls[0]?.[0]);
     expect(sql).toContain("o.status='PENDING' AND o.ends_at>$5");
     expect(sql).toContain("o.status='CONFIRMED'");
+    expect(sql).toContain('o.delivered_at IS NOT NULL');
     expect(sql).toContain('o.returned_at IS NULL');
-    expect(sql).toContain('GREATEST(o.ends_at,o.returned_at)>$5');
+    expect(sql).toContain(
+      'GREATEST(o.ends_at,COALESCE(o.returned_at,o.ends_at))>$5',
+    );
     expect(sql).toContain('o.starts_at<$6');
     expect(sql).toContain('vc.starts_at<$6 AND vc.ends_at>$5');
     expect(sql).toContain(
@@ -80,7 +83,7 @@ describe('AutosV2Service reservation schedule', () => {
     );
   });
 
-  it('keeps confirmed units blocked after the planned end until physical return', async () => {
+  it('keeps physically delivered units blocked after the planned end until return', async () => {
     const manager = {
       query: jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
     };
@@ -117,8 +120,11 @@ describe('AutosV2Service reservation schedule', () => {
     const orderSql = String(manager.query.mock.calls[1]?.[0]);
     expect(orderSql).toContain("status='PENDING' AND ends_at>$2");
     expect(orderSql).toContain("status='CONFIRMED'");
+    expect(orderSql).toContain('delivered_at IS NOT NULL');
     expect(orderSql).toContain('returned_at IS NULL');
-    expect(orderSql).toContain('GREATEST(ends_at,returned_at)>$2');
+    expect(orderSql).toContain(
+      'GREATEST(ends_at,COALESCE(returned_at,ends_at))>$2',
+    );
     expect(manager.query.mock.calls[1]?.[1]).toEqual([
       'vehicle-1',
       start,
