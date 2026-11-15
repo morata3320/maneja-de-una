@@ -34,6 +34,8 @@ export function Checkout() {
     } | null>(null);
   const [startDate, setStart] = useState(params.get("start") || ""),
     [endDate, setEnd] = useState(params.get("end") || ""),
+    [startTime, setStartTime] = useState(params.get("startTime") || "10:00"),
+    [endTime, setEndTime] = useState(params.get("endTime") || "10:00"),
     [firstName, setFirst] = useState(""),
     [lastName, setLast] = useState(""),
     [cedula, setCedula] = useState(""),
@@ -85,6 +87,8 @@ export function Checkout() {
           vehicleId,
           startDate,
           endDate,
+          startTime,
+          endTime,
           pickupDepotId: Number(pickupDepotId),
           driver: { firstName, lastName, cedula, phone },
         },
@@ -172,6 +176,14 @@ export function Checkout() {
                 onChange={(e) => setStart(e.target.value)}
                 required
               />
+              <Input
+                label="Hora de recogida"
+                type="time"
+                step={1800}
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                required
+              />
               <Select
                 label="Lugar de recogida"
                 value={pickupDepotId}
@@ -191,6 +203,14 @@ export function Checkout() {
                 min={startDate}
                 value={endDate}
                 onChange={(e) => setEnd(e.target.value)}
+                required
+              />
+              <Input
+                label="Hora de devolución"
+                type="time"
+                step={1800}
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
                 required
               />
               <div className="price-summary total">

@@ -39,9 +39,11 @@ export function VehicleDetail() {
   const [initialDates] = useState(defaultBookingDates);
   const [start, setStart] = useState(initialDates.start);
   const [end, setEnd] = useState(initialDates.end);
+  const [startTime, setStartTime] = useState("10:00");
+  const [endTime, setEndTime] = useState("10:00");
   const availabilityQuery =
     start && end
-      ? `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
+      ? `?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`
       : "";
   const { vehicle, loading } = useVehicleController(id, availabilityQuery);
   const { vehicles } = useVehiclesController("?limit=3");
@@ -195,7 +197,7 @@ export function VehicleDetail() {
               e.preventDefault();
               if (valid && available && pickupDepotId)
                 navigate(
-                  `/checkout/${id}?start=${start}&end=${end}&depot=${pickupDepotId}`,
+                  `/checkout/${id}?start=${start}&end=${end}&startTime=${startTime}&endTime=${endTime}&depot=${pickupDepotId}`,
                 );
             }}
           >
@@ -229,12 +231,28 @@ export function VehicleDetail() {
               onChange={(e) => setStart(e.target.value)}
             />
             <Input
+              label="Hora de recogida"
+              type="time"
+              step={1800}
+              value={startTime}
+              required
+              onChange={(e) => setStartTime(e.target.value)}
+            />
+            <Input
               label="Devolución"
               type="date"
               min={start}
               value={end}
               required
               onChange={(e) => setEnd(e.target.value)}
+            />
+            <Input
+              label="Hora de devolución"
+              type="time"
+              step={1800}
+              value={endTime}
+              required
+              onChange={(e) => setEndTime(e.target.value)}
             />
             <div className="price-summary">
               <span>

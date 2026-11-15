@@ -220,3 +220,46 @@ describe('V2Service admin catalogs and vehicles', () => {
     ).toBe(false);
   });
 });
+
+describe('V2Service reservation time validation', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('accepts today when the Ecuador pickup time is still in the future', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-14T13:00:00.000Z'));
+    const manager = {
+      query: jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    };
+    const db = {
+      transaction: jest.fn(
+        async (callback: (value: typeof manager) => Promise<unknown>) =>
+          callback(manager),
+      ),
+    } as unknown as DataSource;
+    const service = new V2Service(db);
+
+    await expect(
+      service.createReservation('user-1', {
+        vehicleId: '20000000-0000-4000-8000-000000000001',
+        startDate: '2026-11-14',
+        startTime: '10:00',
+        endDate: '2026-11-15',
+        endTime: '10:00',
+      }),
+    ).rejects.toThrow('Vehiculo no encontrado');
+  });
+
+  it('rejects today when the Ecuador pickup time has passed', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-14T13:00:00.000Z'));
+    const service = new V2Service({} as DataSource);
+
+    await expect(
+      service.createReservation('user-1', {
+        vehicleId: '20000000-0000-4000-8000-000000000001',
+        startDate: '2026-11-14',
+        startTime: '07:00',
+        endDate: '2026-11-15',
+        endTime: '10:00',
+      }),
+    ).rejects.toThrow('Fechas inválidas o pasadas');
+  });
+});

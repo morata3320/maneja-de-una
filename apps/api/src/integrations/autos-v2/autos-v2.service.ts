@@ -19,6 +19,7 @@ import type {
 import { InventoryStockOutboxService } from '../inventory/inventory-stock-outbox.service';
 import { BookingClientsService } from '../booking/booking-clients.service';
 import { BookingCheckinService } from '../booking/booking-checkin.service';
+import { ecuadorDateTime } from '../../common/ecuador-date-time';
 
 type Actor = { id: string; role: string; scopes: string[] };
 type VehicleView = {
@@ -1145,10 +1146,11 @@ JOIN vehicles v ON v.id=vc.vehicle_id WHERE vc.completed_at IS NULL AND vc.ends_
   }
 
   private dateTime(date: string, time: string) {
-    const value = new Date(`${date}T${time}:00-05:00`);
-    if (!Number.isFinite(value.getTime()))
+    try {
+      return ecuadorDateTime(date, time);
+    } catch {
       throw new ConflictException('Fecha u hora inválida.');
-    return value;
+    }
   }
 
   private bracketAge(value?: string) {

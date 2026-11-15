@@ -25,6 +25,7 @@ import type {
   VehiclePatchDto,
 } from './dto';
 import { cardBrand } from './validation';
+import { reservationDateTime } from '../common/ecuador-date-time';
 
 type Row = Record<string, unknown>;
 const camel = (key: string) =>
@@ -58,8 +59,14 @@ const availabilityPeriod = (query: Record<string, unknown>) => {
   if (query.startDate === undefined && query.endDate === undefined) return null;
   if (typeof query.startDate !== 'string' || typeof query.endDate !== 'string')
     throw new BadRequestException('startDate y endDate son requeridos juntos');
-  const start = new Date(query.startDate),
-    end = new Date(query.endDate);
+  const start = reservationDateTime(
+      query.startDate,
+      typeof query.startTime === 'string' ? query.startTime : undefined,
+    ),
+    end = reservationDateTime(
+      query.endDate,
+      typeof query.endTime === 'string' ? query.endTime : undefined,
+    );
   if (
     !Number.isFinite(start.valueOf()) ||
     !Number.isFinite(end.valueOf()) ||
@@ -901,8 +908,8 @@ export class V2Service {
   }
 
   async createReservation(userId: string, body: ReservationDto) {
-    const start = new Date(body.startDate),
-      end = new Date(body.endDate);
+    const start = reservationDateTime(body.startDate, body.startTime),
+      end = reservationDateTime(body.endDate, body.endTime);
     if (
       !Number.isFinite(start.valueOf()) ||
       !Number.isFinite(end.valueOf()) ||
